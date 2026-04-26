@@ -3,11 +3,13 @@ import { useAuth } from '../context/AuthContext'
 import { useTrades } from '../context/TradeContext'
 import { useMilestones } from '../hooks/useMilestones'
 import { mergeImportedStats } from '../utils/mergeStats'
+import { DashboardSkeleton } from '../components/shared/SkeletonCard'
 import MorningBriefing from '../components/dashboard/MorningBriefing'
 import PatternInsights from '../components/dashboard/PatternInsights'
 import EquityCurve from '../components/dashboard/EquityCurve'
 import CalendarHeatmap from '../components/dashboard/CalendarHeatmap'
 import MilestoneModal from '../components/dashboard/MilestoneModal'
+import WeeklySummary from '../components/dashboard/WeeklySummary'
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
@@ -168,17 +170,7 @@ export default function Dashboard() {
 
   const streakColor = s.currentStreak > 0 ? 'text-win' : s.currentStreak < 0 ? 'text-loss' : 'text-white/40'
 
-  if (loading) {
-    return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-20 card bg-white/3" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[...Array(8)].map((_, i) => <div key={i} className="h-24 card bg-white/3" />)}
-        </div>
-        <div className="h-56 card bg-white/3" />
-      </div>
-    )
-  }
+  if (loading) return <DashboardSkeleton />
 
   if (!trades.length) {
     return <EmptyState name={userProfile?.displayName ?? user?.displayName} onAddTrade={onAddTrade} />
@@ -191,6 +183,9 @@ export default function Dashboard() {
       <div className="space-y-5 animate-fade-in">
         {/* Morning briefing */}
         <MorningBriefing trades={trades} userProfile={userProfile} user={user} />
+
+        {/* Weekly summary */}
+        <WeeklySummary trades={trades} userProfile={userProfile} user={user} />
 
         {/* Streak alert */}
         <StreakAlert streak={s.currentStreak} />

@@ -1,5 +1,11 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useTrades } from '../context/TradeContext'
+import {
+  collection, query, where, getDocs, writeBatch, doc, deleteDoc,
+} from 'firebase/firestore'
+import { deleteUser, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
+import { db, auth } from '../firebase/config'
 import toast from 'react-hot-toast'
 
 const MARKETS_LIST = [
@@ -14,7 +20,8 @@ const MARKETS_LIST = [
 ]
 
 export default function Settings() {
-  const { user, userProfile, saveUserProfile } = useAuth()
+  const { user, userProfile, saveUserProfile, logout } = useAuth()
+  const { trades } = useTrades()
   const [saving, setSaving] = useState(false)
 
   const [form, setForm] = useState({
@@ -202,6 +209,9 @@ export default function Settings() {
 
       {/* Import historical stats */}
       <ImportStats userId={user?.uid} saveUserProfile={saveUserProfile} existing={userProfile?.importedStats} />
+
+      {/* Danger zone */}
+      <DangerZone user={user} trades={trades} logout={logout} />
     </div>
   )
 }
@@ -350,6 +360,108 @@ function ImportStats({ userId, saveUserProfile, existing }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+
+// ─── Danger Zone ──────────────────────────────────────────────────────────────
+
+function DangerZone({ user, trades, logout }) {
+  const [deleting, setDeleting] = useState(false)
+  const [confirm, setConfirm] = useState('')
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false)
+  const [password, setPassword] = useState('')
+  const [accountDeleting, setAccountDeleting] = useState(false)
+
+  const handleDeleteTrades = async () => {
+    if (!window.confirm(`Delete all ${trades.length} trades? This cannot be undone.`)) return
+    setDeleting(true)
+    try {
+      const q = query(collection(db, 'trades'), where('userId', '==', user.uid))
+      const snap = await getDocs(q)
+      const batch = writeBatch(db)
+      snap.docs.forEach((d) => batch.delete(d.ref))
+      await batch.commit()
+      Object.keys(localStorage).filter((k) => k.includes(user.uid)).forEach((k) => localStorage.removeItem(k))
+      toast.success('All trades deleted')
+    } catch { toast.error('Failed to delete trades') }
+    finally { setDeleting(false) }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (confirm !== 'DELETE') { toast.error('Type DELETE to confirm'); return }
+    setAccountDeleting(true)
+    try {
+      const credential = EmailAuthProvider.credential(user.email, password)
+      await reauthenticateWithCredential(auth.currentUser, credential)
+      const q = query(collection(db, 'trades'), where('userId', '==', user.uid))
+      const snap = await getDocs(q)
+      const batch = writeBatch(db)
+      snap.docs.forEach((d) => batch.delete(d.ref))
+
+      batch.delete(doc(db, 'users', user.uid))
+      await batch.commit()
+      await deleteUser(auth.currentUser)
+      Object.keys(localStorage).filter((k) => k.includes(user.uid)).forEach((k) => localStorage.removeItem(k))
+      toast.success('Account deleted')
+    } catch (err) {
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') toast.error('Incorrect password')
+      else if (err.code === 'auth/requires-recent-login') toast.error('Sign out and sign back in first')
+      else toast.error('Failed to delete account')
+    } finally { setAccountDeleting(false) }
+  }
+
+  return (
+    <div className="card p-6 border-loss/20">
+      <h2 className="text-loss font-bold text-lg mb-1">Danger Zone</h2>
+      <p className="text-white/40 text-sm mb-5">These actions are permanent and cannot be undone.</p>
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-4 p-4 rounded-xl bg-loss/5 border border-loss/15">
+          <div>
+            <div className="text-sm font-semibold text-white mb-0.5">Delete all trades</div>
+            <div className="text-xs text-white/40">Permanently delete all {trades.length} logged trades. Account stays.</div>
+          </div>
+          <button onClick={handleDeleteTrades} disabled={deleting || trades.length === 0}
+            className="btn-danger text-sm flex-shrink-0 disabled:opacity-40 flex items-center gap-2">
+            {deleting ? <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg> : null}
+            {deleting ? 'Deleting…' : 'Delete trades'}
+          </button>
+        </div>
+        <div className="p-4 rounded-xl bg-loss/5 border border-loss/15">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold text-white mb-0.5">Delete account</div>
+              <div className="text-xs text-white/40">Permanently delete your account and all data.</div>
+            </div>
+            <button onClick={() => setShowDeleteAccount((v) => !v)} className="btn-danger text-sm flex-shrink-0">
+              {showDeleteAccount ? 'Cancel' : 'Delete account'}
+            </button>
+          </div>
+          {showDeleteAccount && (
+            <div className="mt-4 space-y-3 pt-4 border-t border-loss/20">
+              <p className="text-xs text-loss font-medium">Type <strong>DELETE</strong> and enter your password to confirm.</p>
+              <input type="text" value={confirm} onChange={(e) => setConfirm(e.target.value)}
+                placeholder='Type "DELETE"' className="input-field border-loss/30 text-sm" />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                placeholder="Your password" className="input-field border-loss/30 text-sm" />
+              <button onClick={handleDeleteAccount}
+                disabled={accountDeleting || confirm !== 'DELETE' || !password}
+                className="w-full bg-loss hover:bg-red-600 text-white font-semibold py-2.5 px-5 rounded-lg
+                  transition-all text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                {accountDeleting ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg> : null}
+                {accountDeleting ? 'Deleting…' : 'Permanently delete my account'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

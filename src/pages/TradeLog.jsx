@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { useTrades } from '../context/TradeContext'
 import TradeDetailModal from '../components/trades/TradeDetailModal'
+import { SkeletonTable } from '../components/shared/SkeletonCard'
 import toast from 'react-hot-toast'
 
 const OUTCOME_BADGE = {
@@ -76,13 +77,7 @@ export default function TradeLog() {
 
   const assetClasses = [...new Set(trades.map((t) => t.assetClass).filter(Boolean))]
 
-  if (loading) {
-    return (
-      <div className="space-y-3 animate-pulse">
-        {[...Array(6)].map((_, i) => <div key={i} className="card h-14 bg-white/3" />)}
-      </div>
-    )
-  }
+  if (loading) return <SkeletonTable rows={6} />
 
   return (
     <>
