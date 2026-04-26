@@ -1,0 +1,181 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-navy-900 text-white font-sans antialiased;
+    background-color: #0a0f1e;
+    min-height: 100vh;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0a0f1e;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #1e2d45;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2d4a6e;
+  }
+
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-card rounded-xl border border-white/5 shadow-lg;
+    background: #111827;
+  }
+
+  .card-hover {
+    @apply card transition-all duration-200 hover:border-white/10 hover:shadow-xl;
+  }
+
+  .btn-primary {
+    @apply bg-accent hover:bg-blue-600 text-white font-semibold py-2.5 px-5 rounded-lg
+      transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/50
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 px-5 rounded-lg
+      border border-white/10 transition-all duration-200 focus:outline-none
+      focus:ring-2 focus:ring-white/20 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-danger {
+    @apply bg-loss/10 hover:bg-loss/20 text-loss font-medium py-2.5 px-5 rounded-lg
+      border border-loss/20 transition-all duration-200;
+  }
+
+  .input-field {
+    @apply bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white
+      placeholder-white/30 focus:outline-none focus:border-accent/60 focus:ring-1
+      focus:ring-accent/30 transition-all duration-200 w-full;
+  }
+
+  .label {
+    @apply text-sm font-medium text-white/60 mb-1.5 block;
+  }
+
+  .stat-card {
+    @apply card p-5 flex flex-col gap-1;
+  }
+
+  .stat-value {
+    @apply text-2xl font-bold text-white;
+  }
+
+  .stat-label {
+    @apply text-xs text-white/50 uppercase tracking-wider font-medium;
+  }
+
+  .badge-win {
+    @apply bg-win/10 text-win border border-win/20 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  }
+
+  .badge-loss {
+    @apply bg-loss/10 text-loss border border-loss/20 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  }
+
+  .badge-neutral {
+    @apply bg-white/10 text-white/70 border border-white/10 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  }
+
+  .nav-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/50 hover:text-white
+      hover:bg-white/5 transition-all duration-200 font-medium text-sm cursor-pointer;
+  }
+
+  .nav-link-active {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-white
+      bg-accent/10 border border-accent/20 font-semibold text-sm;
+  }
+
+  .page-title {
+    @apply text-2xl font-bold text-white;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold text-white;
+  }
+
+  .divider {
+    @apply border-t border-white/5 my-4;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-accent to-win bg-clip-text text-transparent;
+  }
+
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+
+  .glow-green {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Page transition animation */
+.page-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 250ms ease, transform 250ms ease;
+}
+
+.page-exit {
+  opacity: 1;
+}
+
+.page-exit-active {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+/* Toast overrides */
+.react-hot-toast-container {
+  z-index: 9999;
+}
