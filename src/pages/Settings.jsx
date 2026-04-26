@@ -199,6 +199,157 @@ export default function Settings() {
           )}
         </button>
       </div>
+
+      {/* Import historical stats */}
+      <ImportStats userId={user?.uid} saveUserProfile={saveUserProfile} existing={userProfile?.importedStats} />
+    </div>
+  )
+}
+
+// ─── Import Stats component ───────────────────────────────────────────────────
+
+function ImportStats({ userId, saveUserProfile, existing }) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [imp, setImp] = useState({
+    total: existing?.total ?? '',
+    wins: existing?.wins ?? '',
+    losses: existing?.losses ?? '',
+    totalPnL: existing?.totalPnL ?? '',
+    startingBalance: existing?.startingBalance ?? '',
+    note: existing?.note ?? '',
+  })
+
+  const set = (k, v) => setImp((f) => ({ ...f, [k]: v }))
+
+  const handleImport = async () => {
+    const total = parseInt(imp.total) || 0
+    const wins = parseInt(imp.wins) || 0
+    const losses = parseInt(imp.losses) || 0
+    const totalPnL = parseFloat(imp.totalPnL) || 0
+
+    if (total < 1) { toast.error('Enter at least 1 total trade'); return }
+    if (wins + losses > total) { toast.error('Wins + losses cannot exceed total trades'); return }
+
+    setSaving(true)
+    try {
+      await saveUserProfile(userId, {
+        importedStats: { total, wins, losses, totalPnL, startingBalance: parseFloat(imp.startingBalance) || 0, note: imp.note },
+      })
+      toast.success('Historical stats imported')
+      setOpen(false)
+    } catch {
+      toast.error('Failed to import stats')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleClear = async () => {
+    if (!window.confirm('Remove imported stats? This only removes the historical data, not your logged trades.')) return
+    setSaving(true)
+    try {
+      await saveUserProfile(userId, { importedStats: null })
+      setImp({ total: '', wins: '', losses: '', totalPnL: '', startingBalance: '', note: '' })
+      toast.success('Imported stats cleared')
+    } catch {
+      toast.error('Failed to clear stats')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <h2 className="section-title">Import Historical Stats</h2>
+          <p className="text-white/40 text-sm mt-1">
+            Have an existing trading history? Add a summary and it'll be included in all your stats.
+          </p>
+        </div>
+        {existing && (
+          <span className="badge-win text-xs">Active</span>
+        )}
+      </div>
+
+      {existing && !open && (
+        <div className="mt-4 p-3 rounded-xl bg-white/3 border border-white/5 grid grid-cols-3 gap-3 text-center mb-4">
+          <div><div className="text-lg font-bold text-white">{existing.total}</div><div className="text-xs text-white/30">Trades</div></div>
+          <div><div className="text-lg font-bold text-win">{existing.wins}W / <span className="text-loss">{existing.losses}L</span></div><div className="text-xs text-white/30">Record</div></div>
+          <div><div className={`text-lg font-bold ${existing.totalPnL >= 0 ? 'text-win' : 'text-loss'}`}>{existing.totalPnL >= 0 ? '+' : ''}${existing.totalPnL?.toFixed(0)}</div><div className="text-xs text-white/30">P&L</div></div>
+        </div>
+      )}
+
+      {!open ? (
+        <div className="flex gap-3 mt-4">
+          <button onClick={() => setOpen(true)} className="btn-secondary text-sm">
+            {existing ? 'Edit imported stats' : '+ Import historical stats'}
+          </button>
+          {existing && (
+            <button onClick={handleClear} disabled={saving} className="btn-danger text-sm">
+              Clear
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="mt-5 space-y-4">
+          <div className="bg-accent/5 border border-accent/20 rounded-xl p-3 text-xs text-white/50 leading-relaxed">
+            Enter your pre-Trackr trading summary. These numbers combine with your logged trades in all charts and stats.
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Total trades</label>
+              <input type="number" value={imp.total} onChange={(e) => set('total', e.target.value)} placeholder="250" className="input-field" min="1" />
+            </div>
+            <div>
+              <label className="label">Starting balance ($)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30">$</span>
+                <input type="number" value={imp.startingBalance} onChange={(e) => set('startingBalance', e.target.value)} placeholder="10000" className="input-field pl-7" />
+              </div>
+            </div>
+            <div>
+              <label className="label">Winning trades</label>
+              <input type="number" value={imp.wins} onChange={(e) => set('wins', e.target.value)} placeholder="140" className="input-field" min="0" />
+            </div>
+            <div>
+              <label className="label">Losing trades</label>
+              <input type="number" value={imp.losses} onChange={(e) => set('losses', e.target.value)} placeholder="110" className="input-field" min="0" />
+            </div>
+            <div className="col-span-2">
+              <label className="label">Total P&L ($)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30">$</span>
+                <input type="number" value={imp.totalPnL} onChange={(e) => set('totalPnL', e.target.value)} placeholder="4200.00" className="input-field pl-7" step="0.01" />
+              </div>
+            </div>
+            <div className="col-span-2">
+              <label className="label">Note (optional)</label>
+              <input type="text" value={imp.note} onChange={(e) => set('note', e.target.value)} placeholder="e.g. 2023 trading history from MT4" className="input-field" />
+            </div>
+          </div>
+
+          {imp.total && imp.wins && (
+            <div className="p-3 rounded-xl bg-white/3 border border-white/5 text-xs text-white/40">
+              Win rate: <strong className="text-white">{Math.round(parseInt(imp.wins) / parseInt(imp.total) * 100)}%</strong>
+              {imp.totalPnL && <> · P&L: <strong className={parseFloat(imp.totalPnL) >= 0 ? 'text-win' : 'text-loss'}>${parseFloat(imp.totalPnL).toFixed(2)}</strong></>}
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button onClick={() => setOpen(false)} className="btn-secondary flex-1 text-sm">Cancel</button>
+            <button onClick={handleImport} disabled={saving} className="btn-primary flex-1 text-sm flex items-center justify-center gap-2">
+              {saving ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg> : null}
+              {saving ? 'Saving…' : 'Save historical stats'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

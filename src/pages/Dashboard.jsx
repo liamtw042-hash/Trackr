@@ -2,6 +2,7 @@ import { useOutletContext } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTrades } from '../context/TradeContext'
 import { useMilestones } from '../hooks/useMilestones'
+import { mergeImportedStats } from '../utils/mergeStats'
 import MorningBriefing from '../components/dashboard/MorningBriefing'
 import PatternInsights from '../components/dashboard/PatternInsights'
 import EquityCurve from '../components/dashboard/EquityCurve'
@@ -150,7 +151,7 @@ export default function Dashboard() {
   const { trades, stats, loading } = useTrades()
   const { pendingMilestone, clearMilestone } = useMilestones(trades, userProfile, user?.uid)
 
-  const s = stats()
+  const s = mergeImportedStats(stats(), userProfile?.importedStats)
 
   const accountBalance = Number(userProfile?.accountBalance ?? 0)
   const startingBalance = Number(userProfile?.startingBalance ?? accountBalance)

@@ -241,3 +241,88 @@ Return ONLY the JSON array.`
     return []
   }
 }
+
+/**
+ * Fetch a URL and return it as a base64 JPEG string (for Firebase Storage URLs).
+ */
+async function urlToBase64(url) {
+  const res = await fetch(url)
+  const blob = await res.blob()
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const b64 = reader.result.replace(/^data:image\/\w+;base64,/, '')
+      resolve(b64)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+function isDataUrl(s) { return typeof s === 'string' && s.startsWith('data:') }
+function isHttpUrl(s) { return typeof s === 'string' && (s.startsWith('http://') || s.startsWith('https://')) }
+
+async function toBase64(input) {
+  if (isDataUrl(input)) return input.replace(/^data:image\/\w+;base64,/, '')
+  if (isHttpUrl(input)) return urlToBase64(input)
+  throw new Error('Unsupported image input')
+}
+
+/**
+ * AI Trade Replay: compare entry vs exit screenshot and give execution feedback.
+ */
+export async function analyzeTradeReplay(entryInput, exitInput, tradeInfo, strategy) {
+  const client = getClient()
+  const [entryB64, exitB64] = await Promise.all([toBase64(entryInput), toBase64(exitInput)])
+
+  const tradeDesc = [
+    tradeInfo.ticker && `Ticker: ${tradeInfo.ticker}`,
+    tradeInfo.direction && `Direction: ${tradeInfo.direction}`,
+    tradeInfo.outcome && `Outcome: ${tradeInfo.outcome}`,
+    tradeInfo.entryPrice && `Entry: ${tradeInfo.entryPrice}`,
+    tradeInfo.exitPrice && `Exit: ${tradeInfo.exitPrice}`,
+    tradeInfo.pnl != null && `P&L: $${tradeInfo.pnl}`,
+    tradeInfo.rMultiple != null && `R: ${tradeInfo.rMultiple}`,
+    tradeInfo.setupType && `Setup: ${tradeInfo.setupType}`,
+  ].filter(Boolean).join(' | ')
+
+  const prompt = `You are an elite trading coach reviewing a completed trade.
+
+Trade: ${tradeDesc}
+Strategy: ${strategy || 'Not provided'}
+
+The FIRST image is the ENTRY chart. The SECOND image is the EXIT chart.
+
+Analyse the full trade execution and return JSON:
+{
+  "entryQuality": "string — was the entry well-timed? What was good/bad?",
+  "exitQuality": "string — did they exit at the right time? Too early/late/perfect?",
+  "executionRating": 7,
+  "whatWentWell": "string — specific positives",
+  "improvements": "string — one or two specific things to do better next time",
+  "lessonLearned": "string — the key takeaway from this trade"
+}
+
+executionRating is 1–10. Be specific and reference what you see in the charts. Return ONLY the JSON.`
+
+  const message = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 800,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: entryB64 } },
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: exitB64 } },
+        { type: 'text', text: prompt },
+      ],
+    }],
+  })
+
+  const text = message.content[0].text.trim()
+  try {
+    const m = text.match(/\{[\s\S]*\}/)
+    return JSON.parse(m ? m[0] : text)
+  } catch {
+    throw new Error('AI replay returned unexpected format.')
+  }
+}
