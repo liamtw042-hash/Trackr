@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
+import AddTradeModal from '../trades/AddTradeModal'
 
 export default function Layout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -23,6 +24,11 @@ export default function Layout() {
           <Outlet context={{ showAddTrade, setShowAddTrade }} />
         </main>
       </div>
+
+      <AddTradeModal
+        isOpen={showAddTrade}
+        onClose={() => setShowAddTrade(false)}
+      />
     </div>
   )
 }
