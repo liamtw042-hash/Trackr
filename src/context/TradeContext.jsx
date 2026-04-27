@@ -7,7 +7,6 @@ import {
   doc,
   query,
   where,
-  orderBy,
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore'
@@ -28,28 +27,36 @@ export function TradeProvider({ children }) {
       return
     }
 
+    // No orderBy here — avoids requiring a composite index.
+    // Sorting is done client-side after the snapshot arrives.
     const q = query(
       collection(db, 'trades'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      where('userId', '==', user.uid)
     )
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const tradeList = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-        createdAt: d.data().createdAt?.toDate?.() ?? new Date(),
-        tradeDate: d.data().tradeDate ?? new Date().toISOString(),
-      }))
-      setTrades(tradeList)
-      setLoading(false)
-    }, (err) => {
-      console.error('Trade snapshot error:', err)
-      setLoading(false)
-    })
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const tradeList = snapshot.docs
+          .map((d) => ({
+            id: d.id,
+            ...d.data(),
+            createdAt: d.data().createdAt?.toDate?.() ?? new Date(0),
+            tradeDate: d.data().tradeDate ?? new Date().toISOString(),
+          }))
+          // Sort newest first by server timestamp
+          .sort((a, b) => b.createdAt - a.createdAt)
+        setTrades(tradeList)
+        setLoading(false)
+      },
+      (err) => {
+        console.error('Firestore trade listener error:', err.code, err.message)
+        setLoading(false)
+      }
+    )
 
     return unsubscribe
-  }, [user])
+  }, [user?.uid]) // depend on uid only — avoids re-subscribing on object identity changes
 
   const addTrade = useCallback(async (tradeData) => {
     if (!user) throw new Error('Not authenticated')
@@ -63,8 +70,10 @@ export function TradeProvider({ children }) {
   }, [user])
 
   const updateTrade = useCallback(async (tradeId, updates) => {
-    const ref = doc(db, 'trades', tradeId)
-    await updateDoc(ref, { ...updates, updatedAt: serverTimestamp() })
+    await updateDoc(doc(db, 'trades', tradeId), {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    })
   }, [])
 
   const deleteTrade = useCallback(async (tradeId) => {
@@ -73,12 +82,13 @@ export function TradeProvider({ children }) {
 
   const stats = useCallback(() => {
     if (!trades.length) return {
-      total: 0, wins: 0, losses: 0, breakeven: 0,
+      total: 0, closed: 0, wins: 0, losses: 0, breakeven: 0,
       winRate: 0, totalPnL: 0, avgWin: 0, avgLoss: 0,
       avgR: 0, bestTrade: 0, worstTrade: 0, currentStreak: 0,
     }
 
-    const closedTrades = trades.filter((t) => t.outcome)
+    // Treat empty-string outcome as open (no outcome selected yet)
+    const closedTrades = trades.filter((t) => t.outcome && t.outcome !== '')
     const wins = closedTrades.filter((t) => t.outcome === 'win')
     const losses = closedTrades.filter((t) => t.outcome === 'loss')
     const totalPnL = closedTrades.reduce((sum, t) => sum + (t.pnl ?? 0), 0)
@@ -89,6 +99,7 @@ export function TradeProvider({ children }) {
       : 0
     const pnlValues = closedTrades.map((t) => t.pnl ?? 0)
 
+    // Current streak (consecutive same-outcome trades, newest first)
     let streak = 0
     const sorted = [...closedTrades].sort((a, b) => new Date(b.tradeDate) - new Date(a.tradeDate))
     if (sorted.length) {
