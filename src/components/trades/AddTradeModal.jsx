@@ -3,7 +3,7 @@ import { useDropzone } from 'react-dropzone'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
 import { useTrades } from '../../context/TradeContext'
-import { analyzeTradeScreenshot } from '../../services/aiService'
+import { analyzeTradeScreenshot, lookupSetupHistory } from '../../services/aiService'
 import { compressImageFile, uploadScreenshot } from '../../services/storageService'
 import { parseStrategyRules } from '../../utils/strategyParser'
 import {
@@ -299,11 +299,143 @@ function StreakWarning({ streak, onCancel, onContinue }) {
   )
 }
 
+// ─── Setup History Lookup ─────────────────────────────────────────────────────
+
+function MatchRow({ trade }) {
+  const pnlColor = (trade.pnl ?? 0) >= 0 ? 'text-win' : 'text-loss'
+  const outcomeClass = trade.outcome === 'win' ? 'badge-win' : trade.outcome === 'loss' ? 'badge-loss' : 'badge-neutral'
+  return (
+    <div className="py-2.5 border-b border-white/5 last:border-0">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-white">{trade.ticker}</span>
+          {trade.direction && (
+            <span className={`text-xs font-semibold ${trade.direction === 'long' ? 'text-win' : 'text-loss'}`}>
+              {trade.direction === 'long' ? '▲' : '▼'}
+            </span>
+          )}
+          <span className={outcomeClass}>{trade.outcome}</span>
+          <span className="text-xs text-white/30">{trade.date}</span>
+        </div>
+        <div className="text-right">
+          {trade.pnl != null && <span className={`text-xs font-mono font-semibold ${pnlColor}`}>{trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}</span>}
+          {trade.rMultiple != null && <span className={`text-xs font-mono ml-2 ${trade.rMultiple >= 0 ? 'text-win' : 'text-loss'}`}>{trade.rMultiple >= 0 ? `1:${trade.rMultiple.toFixed(2)}` : `${trade.rMultiple.toFixed(2)}R`}</span>}
+        </div>
+      </div>
+      {trade.setup && <div className="text-xs text-white/40">{trade.setup}</div>}
+      {trade.note && <div className="text-xs text-white/55 mt-0.5 italic">{trade.note}</div>}
+    </div>
+  )
+}
+
+function SetupHistoryLookup({ open, onToggle, desc, onDescChange, onLookup, loading, result }) {
+  return (
+    <div className="rounded-xl border border-white/8 bg-white/2 overflow-hidden">
+      {/* Toggle header */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/3 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-base">🔍</span>
+          <span className="text-sm font-semibold text-white">Have I Seen This Before?</span>
+          {result?.found && (
+            <span className="badge-win text-xs">{result.matches?.length} match{result.matches?.length !== 1 ? 'es' : ''}</span>
+          )}
+        </div>
+        <svg
+          className={`w-4 h-4 text-white/30 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          viewBox="0 0 20 20" fill="currentColor"
+        >
+          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 space-y-3 border-t border-white/5">
+          <p className="text-xs text-white/40 pt-3 leading-relaxed">
+            Describe the setup or use your entry screenshot above — Claude will search your journal for similar past trades.
+          </p>
+
+          <textarea
+            value={desc}
+            onChange={(e) => onDescChange(e.target.value)}
+            placeholder="e.g. GBPUSD FVG retest on 1H after a break of structure, entering on the wick rejection…"
+            className="input-field resize-none text-sm"
+            rows={3}
+          />
+
+          <button
+            type="button"
+            onClick={onLookup}
+            disabled={loading}
+            className="btn-primary w-full text-sm flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Searching journal…
+              </>
+            ) : '🔍 Search My Journal'}
+          </button>
+
+          {/* Result */}
+          {result && !loading && (
+            <div className="space-y-3 pt-1">
+              {!result.found ? (
+                <div className="rounded-lg border border-white/8 bg-white/2 px-4 py-3 text-center">
+                  <div className="text-2xl mb-1">📭</div>
+                  <p className="text-sm text-white/50">{result.keyLesson}</p>
+                </div>
+              ) : (
+                <>
+                  {/* Stats bar */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: 'Matches', v: result.stats?.totalMatches ?? result.matches?.length ?? 0, c: 'text-white' },
+                      { label: 'Win rate', v: `${result.stats?.winRate ?? 0}%`, c: result.stats?.winRate >= 50 ? 'text-win' : 'text-loss' },
+                      { label: 'Avg R', v: result.stats?.avgR != null ? (result.stats.avgR >= 0 ? `1:${result.stats.avgR.toFixed(2)}` : `${result.stats.avgR.toFixed(2)}R`) : '—', c: result.stats?.avgR >= 0 ? 'text-win' : 'text-loss' },
+                    ].map(({ label, v, c }) => (
+                      <div key={label} className="rounded-lg bg-white/5 border border-white/8 p-2 text-center">
+                        <div className="text-xs text-white/35 mb-0.5">{label}</div>
+                        <div className={`text-sm font-bold ${c}`}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Key lesson */}
+                  {result.keyLesson && (
+                    <div className="rounded-lg bg-accent/5 border border-accent/20 px-3 py-2.5">
+                      <div className="text-xs text-accent font-semibold mb-1">💡 Key Lesson</div>
+                      <p className="text-xs text-white/65 leading-relaxed">{result.keyLesson}</p>
+                    </div>
+                  )}
+
+                  {/* Match list */}
+                  {result.matches?.length > 0 && (
+                    <div className="rounded-lg border border-white/8 bg-white/2 px-3 divide-y divide-white/5">
+                      {result.matches.map((t) => <MatchRow key={t.id ?? t.date} trade={t} />)}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AddTradeModal({ isOpen, onClose }) {
   const { user, userProfile } = useAuth()
-  const { addTrade, stats } = useTrades()
+  const { trades, addTrade, stats } = useTrades()
 
   const [form, setForm] = useState(EMPTY_FORM)
   const [entryScreenshotFile, setEntryScreenshotFile] = useState(null)
@@ -316,6 +448,12 @@ export default function AddTradeModal({ isOpen, onClose }) {
   const [checklist, setChecklist] = useState([])
   const [showStreakWarning, setShowStreakWarning] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
+  // Setup history lookup
+  const [lookupOpen, setLookupOpen] = useState(false)
+  const [lookupDesc, setLookupDesc] = useState('')
+  const [lookupResult, setLookupResult] = useState(null)
+  const [lookupLoading, setLookupLoading] = useState(false)
 
   const tradeIdRef = useRef(uuidv4())
   const s = stats()
@@ -342,6 +480,9 @@ export default function AddTradeModal({ isOpen, onClose }) {
       setExitScreenshotFile(null)
       setExitScreenshotPreview(null)
       setAiAnalysis(null)
+      setLookupOpen(false)
+      setLookupDesc('')
+      setLookupResult(null)
       tradeIdRef.current = uuidv4()
     }
   }, [isOpen, userProfile?.defaultRisk])
@@ -438,24 +579,47 @@ export default function AddTradeModal({ isOpen, onClose }) {
     }
   }
 
+  // Setup history lookup
+  const handleLookup = async () => {
+    if (!lookupDesc.trim() && !entryScreenshotFile) {
+      toast.error('Add a description or upload an entry screenshot first')
+      return
+    }
+    const closed = trades.filter((t) => t.outcome)
+    if (!closed.length) {
+      setLookupResult({ found: false, keyLesson: 'No closed trades in your journal yet.' })
+      return
+    }
+    setLookupLoading(true)
+    setLookupResult(null)
+    try {
+      const result = await lookupSetupHistory(closed, lookupDesc, entryScreenshotFile, userProfile?.strategy)
+      setLookupResult(result)
+    } catch (err) {
+      toast.error(err.message ?? 'Lookup failed')
+    } finally {
+      setLookupLoading(false)
+    }
+  }
+
   // Submit
   const doSubmit = async () => {
     setSubmitting(true)
     try {
       const tradeId = tradeIdRef.current
 
-      // Upload screenshots
+      // Upload screenshots — failures return null (timeout/error); never block trade save
       let entryScreenshotUrl = null
       let exitScreenshotUrl = null
+      let screenshotFailed = false
       if (entryScreenshotPreview && user) {
         entryScreenshotUrl = await uploadScreenshot(user.uid, tradeId, entryScreenshotPreview, 'entry')
+        if (!entryScreenshotUrl) screenshotFailed = true
       }
       if (exitScreenshotPreview && user) {
         exitScreenshotUrl = await uploadScreenshot(user.uid, tradeId, exitScreenshotPreview, 'exit')
+        if (!exitScreenshotUrl) screenshotFailed = true
       }
-
-      const pnl = livePnL
-      const rMultiple = liveR
 
       const tradeData = {
         ...form,
@@ -466,8 +630,8 @@ export default function AddTradeModal({ isOpen, onClose }) {
         riskAmount: parseFloat(form.riskAmount) || null,
         riskPercent: parseFloat(form.riskPercent) || null,
         exitPrice: form.exitPrice ? parseFloat(form.exitPrice) : null,
-        pnl,
-        rMultiple,
+        pnl: livePnL,
+        rMultiple: liveR,
         followedRules,
         checklist: strategyRules.map((rule, i) => ({ rule, checked: !!checklist[i] })),
         entryScreenshotUrl,
@@ -477,7 +641,12 @@ export default function AddTradeModal({ isOpen, onClose }) {
       }
 
       await addTrade(tradeData)
-      toast.success('Trade logged! 📊')
+
+      if (screenshotFailed) {
+        toast('Screenshot failed to upload but trade was saved', { icon: '⚠️', duration: 5000 })
+      } else {
+        toast.success('Trade logged! 📊')
+      }
       onClose()
     } catch (err) {
       console.error(err)
@@ -675,9 +844,9 @@ export default function AddTradeModal({ isOpen, onClose }) {
                         </div>
                         {liveR != null && (
                           <div className="text-right">
-                            <div className="text-xs text-white/40">R Multiple</div>
+                            <div className="text-xs text-white/40">R:R</div>
                             <div className={`text-xl font-bold ${liveR >= 0 ? 'text-win' : 'text-loss'}`}>
-                              {liveR >= 0 ? '+' : ''}{liveR.toFixed(2)}R
+                              {liveR >= 0 ? `1:${liveR.toFixed(2)}` : `${liveR.toFixed(2)}R`}
                             </div>
                           </div>
                         )}
@@ -760,6 +929,17 @@ export default function AddTradeModal({ isOpen, onClose }) {
                     label="Exit Chart"
                   />
                 </div>
+
+                {/* Have I Seen This Before? */}
+                <SetupHistoryLookup
+                  open={lookupOpen}
+                  onToggle={() => setLookupOpen((v) => !v)}
+                  desc={lookupDesc}
+                  onDescChange={setLookupDesc}
+                  onLookup={handleLookup}
+                  loading={lookupLoading}
+                  result={lookupResult}
+                />
 
                 {/* Strategy checklist */}
                 {strategyRules.length > 0 && (

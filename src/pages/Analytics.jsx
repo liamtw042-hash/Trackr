@@ -191,7 +191,7 @@ export default function Analytics() {
           { label: 'Closed trades', v: summary.total, c: 'text-white' },
           { label: 'Win rate', v: `${summary.winRate.toFixed(1)}%`, c: summary.winRate >= 50 ? 'text-win' : 'text-loss' },
           { label: 'Total P&L', v: `${summary.totalPnL >= 0 ? '+' : ''}$${summary.totalPnL.toFixed(2)}`, c: summary.totalPnL >= 0 ? 'text-win' : 'text-loss' },
-          { label: 'Avg R', v: `${summary.avgR >= 0 ? '+' : ''}${summary.avgR.toFixed(2)}R`, c: summary.avgR >= 0 ? 'text-win' : 'text-loss' },
+          { label: 'Avg R', v: summary.avgR >= 0 ? `1:${summary.avgR.toFixed(2)}` : `${summary.avgR.toFixed(2)}R`, c: summary.avgR >= 0 ? 'text-win' : 'text-loss' },
           { label: 'Profit factor', v: summary.profitFactor != null ? summary.profitFactor.toFixed(2) : '∞', c: 'text-accent' },
         ].map(({ label, v, c }) => (
           <div key={label} className="card p-4">
@@ -280,7 +280,7 @@ export default function Analytics() {
               <BarChart data={bySetup} layout="vertical" margin={{ top:0,right:30,bottom:0,left:0 }}>
                 <XAxis type="number" tick={TICK} axisLine={false} tickLine={false} domain={[0,100]} tickFormatter={(v)=>`${v}%`} />
                 <YAxis type="category" dataKey="name" tick={TICK} axisLine={false} tickLine={false} width={90} />
-                <Tooltip {...TT} formatter={(v,n)=>[n==='winRate'?`${v}%`:`${v}R`, n==='winRate'?'Win Rate':'Avg R']} />
+                <Tooltip {...TT} formatter={(v,n)=>[n==='winRate'?`${v}%`:(v>=0?`1:${v}`:`${v}R`), n==='winRate'?'Win Rate':'Avg R']} />
                 <Bar dataKey="winRate" radius={[0,4,4,0]}>
                   {bySetup.map((e)=><Cell key={e.name} fill={e.winRate>=50?'#10b981':'#ef4444'} />)}
                 </Bar>

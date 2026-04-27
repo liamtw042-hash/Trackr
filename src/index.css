@@ -41,6 +41,16 @@
     -webkit-appearance: none;
     margin: 0;
   }
+
+  select {
+    color-scheme: dark;
+  }
+
+  select option,
+  select optgroup {
+    background-color: #1f2937;
+    color: #ffffff;
+  }
 }
 
 @layer components {

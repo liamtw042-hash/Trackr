@@ -208,7 +208,7 @@ export default function Dashboard() {
           <StatCard
             label="Total P&L"
             value={`${s.totalPnL >= 0 ? '+' : ''}$${s.totalPnL.toFixed(2)}`}
-            sub={`Avg R: ${s.avgR >= 0 ? '+' : ''}${s.avgR.toFixed(2)}`}
+            sub={`Avg R: ${s.avgR >= 0 ? `1:${s.avgR.toFixed(2)}` : `${s.avgR.toFixed(2)}R`}`}
             color={s.totalPnL >= 0 ? 'text-win' : 'text-loss'}
             icon="💰"
           />

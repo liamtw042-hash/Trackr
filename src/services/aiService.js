@@ -471,3 +471,125 @@ Return ONLY the JSON object.`,
     throw new Error('AI replay returned unexpected format.')
   }
 }
+
+// ─── Setup history lookup system prompt ───────────────────────────────────────
+
+const LOOKUP_SYSTEM = `You are a trading journal analyst specialising in pattern recognition and setup comparison. You help traders identify whether they have encountered similar market setups in the past, so they can learn from their previous experience.
+
+When comparing setups you look for:
+- Same or correlated ticker/instrument
+- Same setup type or price action pattern (FVG, order block, structure break, support/resistance bounce, breakout retest, etc.)
+- Similar market structure at the time of entry (trending, ranging, after a sweep, at a key level)
+- Similar timeframe and market context
+- Similar entry trigger or confirmation signal
+
+Similarity levels:
+- "high" — same instrument, same setup type, same structural context
+- "medium" — same setup type on different instrument, or same instrument with slightly different conditions
+- "low" — loosely related pattern or instrument correlation
+
+You only flag genuine matches — not superficial ones. If the trade history has no similar trades, say so honestly.
+
+Your key lesson should be specific and actionable, referencing actual trade outcomes from the history. For example: "You've taken FVG retests on GBPUSD 3 times — 2 wins, 1 loss. The loss occurred when you entered before the wick was fully engulfed. All your winners had clean engulfing candles at the FVG."
+
+Return ONLY valid JSON as specified. Never include markdown or explanation outside the JSON object.`
+
+/**
+ * Search past trades for setups similar to the one the trader is about to take.
+ * Accepts optional screenshot and/or text description.
+ * Returns matching trades with stats and a key lesson.
+ */
+export async function lookupSetupHistory(closedTrades, description, imageFile, strategy) {
+  const client = getClient()
+
+  if (!closedTrades.length) return { found: false, keyLesson: 'No closed trades in your journal yet.' }
+
+  // Build a compact, indexed summary of closed trades (max 100)
+  const tradeSummary = closedTrades.slice(0, 100).map((t, i) => ({
+    i: i + 1,
+    date: t.tradeDate ? new Date(t.tradeDate).toISOString().slice(0, 10) : '?',
+    ticker: t.ticker ?? '?',
+    direction: t.direction ?? '?',
+    setup: t.setupType ?? '?',
+    outcome: t.outcome,
+    pnl: t.pnl ?? null,
+    r: t.rMultiple ?? null,
+    notes: t.notes ? t.notes.slice(0, 80) : null,
+  }))
+
+  const content = []
+
+  if (imageFile) {
+    const compressed = await compressImage(imageFile)
+    const base64 = dataUrlToBase64(compressed)
+    content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } })
+  }
+
+  content.push({
+    type: 'text',
+    text: `Strategy:\n${strategy || 'Not provided'}`,
+    cache_control: { type: 'ephemeral' },
+  })
+
+  content.push({
+    type: 'text',
+    text: `${description ? `Setup description: "${description}"\n\n` : ''}Closed trade history (${tradeSummary.length} trades):
+${JSON.stringify(tradeSummary, null, 2)}
+
+Find any past trades that are genuinely similar to the setup ${imageFile ? 'shown in the chart above' : ''}${description ? ` described as "${description}"` : ''}.
+
+Return JSON:
+{
+  "found": true,
+  "matchIndices": [1, 3, 7],
+  "analysis": [
+    { "i": 1, "similarity": "high|medium|low", "note": "Why this trade matches" }
+  ],
+  "stats": {
+    "winRate": 67,
+    "avgR": 1.2,
+    "totalMatches": 3
+  },
+  "keyLesson": "Specific, actionable insight referencing actual outcomes from the matching trades"
+}
+
+If no similar trades exist, return: { "found": false, "keyLesson": "No similar setups found in your journal yet." }
+Return ONLY valid JSON.`,
+  })
+
+  const message = await client.beta.promptCaching.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 800,
+    system: [{ type: 'text', text: LOOKUP_SYSTEM, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content }],
+  })
+
+  const text = message.content[0].text.trim()
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  const result = JSON.parse(jsonMatch ? jsonMatch[0] : text)
+
+  if (!result.found) return { found: false, keyLesson: result.keyLesson }
+
+  // Hydrate matchIndices back to full trade objects
+  const matches = (result.matchIndices ?? [])
+    .map((idx) => {
+      const summary = tradeSummary[idx - 1]
+      const original = closedTrades[idx - 1]
+      if (!summary || !original) return null
+      const note = result.analysis?.find((a) => a.i === idx)?.note ?? ''
+      return {
+        id: original.id,
+        date: summary.date,
+        ticker: summary.ticker,
+        setup: summary.setup,
+        direction: summary.direction,
+        outcome: summary.outcome,
+        pnl: summary.pnl,
+        rMultiple: summary.r,
+        note,
+      }
+    })
+    .filter(Boolean)
+
+  return { found: true, matches, stats: result.stats, keyLesson: result.keyLesson }
+}

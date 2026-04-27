@@ -210,7 +210,7 @@ export default function TradeLog() {
                       <td className="py-3.5 px-5 text-right font-mono text-xs">
                         {trade.rMultiple != null ? (
                           <span className={trade.rMultiple >= 0 ? 'text-win' : 'text-loss'}>
-                            {trade.rMultiple >= 0 ? '+' : ''}{trade.rMultiple.toFixed(2)}R
+                            {trade.rMultiple >= 0 ? `1:${trade.rMultiple.toFixed(2)}` : `${trade.rMultiple.toFixed(2)}R`}
                           </span>
                         ) : <span className="text-white/20">—</span>}
                       </td>

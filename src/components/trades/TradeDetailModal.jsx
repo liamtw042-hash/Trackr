@@ -308,9 +308,9 @@ export default function TradeDetailModal({ trade, onClose }) {
                   </div>
                   {trade.rMultiple != null && (
                     <div className="text-right">
-                      <div className="text-xs text-white/40 mb-0.5">R Multiple</div>
+                      <div className="text-xs text-white/40 mb-0.5">R:R</div>
                       <div className={`text-2xl font-bold ${trade.rMultiple >= 0 ? 'text-win' : 'text-loss'}`}>
-                        {trade.rMultiple >= 0 ? '+' : ''}{trade.rMultiple.toFixed(2)}R
+                        {trade.rMultiple >= 0 ? `1:${trade.rMultiple.toFixed(2)}` : `${trade.rMultiple.toFixed(2)}R`}
                       </div>
                     </div>
                   )}
