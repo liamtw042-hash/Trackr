@@ -1,6 +1,7 @@
 /**
  * Extract discrete rules from a plain-English strategy description.
- * Priority: numbered/bulleted lines → sentence split → conjunction split.
+ * Handles: numbered/bulleted lists, punctuated prose, and unpunctuated
+ * run-on sentences that use conjunctions as connectors.
  */
 export function parseStrategyRules(strategy) {
   if (!strategy?.trim()) return []
@@ -15,23 +16,58 @@ export function parseStrategyRules(strategy) {
 
   if (bulletLines.length >= 2) return dedupe(bulletLines).slice(0, 12)
 
-  // 2. Split on sentence-ending punctuation AND aggressive conjunction splitting
-  const chunks = strategy
-    // Treat newlines as sentence boundaries
-    .replace(/\n+/g, '. ')
-    // Split on sentence ends, semicolons, and "and/then/also/plus" used as list connectors
-    .split(/[.!?;]|\s+[-–]\s+|(?:,\s*(?:and|then|also|plus|additionally|furthermore)\s+)/i)
-    .flatMap((chunk) =>
-      // Further split remaining commas followed by action words
-      chunk.split(/,\s*(?=(?:only|never|always|wait|look|use|avoid|enter|exit|confirm|check|take|set|move|trail|target|risk|watch|ensure|require|need)\b)/i)
-    )
-    .map((s) => s.replace(/^[\s,]+|[\s,]+$/g, '').trim())
-    // Remove fragments that are too short or too long
+  // 2. Split on sentence-ending punctuation and semicolons
+  const bySentence = strategy
+    .split(/[.!?;]\s*|\n+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 5)
+
+  // For each sentence, also split on conjunction connectors
+  const chunks = bySentence
+    .flatMap(splitOnConjunctions)
+    .map((s) => {
+      s = s.trim().replace(/^,\s*/, '')
+      // Capitalise first letter
+      return s.charAt(0).toUpperCase() + s.slice(1)
+    })
     .filter((s) => s.length > 8 && s.length < 220)
-    // Drop lines that are clearly incomplete fragments (no verb-like word)
-    .filter((s) => /\w{3,}/.test(s))
 
   return dedupe(chunks).slice(0, 12)
+}
+
+/**
+ * Split a single sentence on conjunction words that indicate new independent rules.
+ * Splits on: "and then", ", and", "and I/my/we/the", bare "and" between long clauses.
+ */
+function splitOnConjunctions(text) {
+  // Step 1: strong connectors that almost always separate independent clauses
+  const step1 = text
+    .split(/\s+and then\s+|\s+then\s+(?=[A-Za-z])/i)
+    .flatMap((s) => s.split(/\s+also\s+(?=[A-Za-z])/i))
+    .flatMap((s) => s.split(/,\s*(?:and|but|then|also|plus|however|additionally)\s+/i))
+
+  // Step 2: split on bare "and" between sufficiently long clauses (likely independent)
+  const step2 = step1.flatMap((s) => {
+    const parts = s.split(/\s+and\s+/i)
+    if (parts.length <= 1) return [s]
+
+    const merged = []
+    let acc = parts[0]
+    for (let i = 1; i < parts.length; i++) {
+      const next = parts[i]
+      // Merge if either side is a short phrase (< 18 chars) — probably a compound noun
+      if (acc.trim().length < 18 || next.trim().length < 14) {
+        acc = acc + ' and ' + next
+      } else {
+        merged.push(acc.trim())
+        acc = next
+      }
+    }
+    merged.push(acc.trim())
+    return merged
+  })
+
+  return step2
 }
 
 function dedupe(arr) {
