@@ -5,6 +5,7 @@ import { useTrades } from '../../context/TradeContext'
 import { useAuth } from '../../context/AuthContext'
 import { analyzeTradeReplay } from '../../services/aiService'
 import { compressImageFile, uploadScreenshot } from '../../services/storageService'
+import { MISTAKES, MISTAKE_LABELS } from '../../utils/constants'
 
 const EMOTIONS = ['', '😴', '😐', '🙂', '😤', '🤯']
 const EMOTION_LABELS = ['', 'Tired', 'Neutral', 'Focused', 'Eager', 'Overconfident']
@@ -108,6 +109,7 @@ function EditSection({ trade, onSave, onCancel }) {
     outcome: trade.outcome ?? '',
     exitPrice: trade.exitPrice ?? '',
     notes: trade.notes ?? '',
+    mistake: trade.mistake ?? '',
   })
   const [exitFile, setExitFile] = useState(null)
   const [exitPreview, setExitPreview] = useState(trade.exitScreenshotUrl ?? null)
@@ -145,6 +147,7 @@ function EditSection({ trade, onSave, onCancel }) {
         outcome: form.outcome || null,
         exitPrice: exit || null,
         notes: form.notes,
+        mistake: form.mistake || '',
         exitScreenshotUrl: exitScreenshotUrl || trade.exitScreenshotUrl,
         pnl,
         rMultiple,
@@ -186,6 +189,16 @@ function EditSection({ trade, onSave, onCancel }) {
         <label className="label">Notes</label>
         <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)}
           className="input-field resize-none" rows={3} />
+      </div>
+
+      <div>
+        <label className="label">Mistake Made (if any)</label>
+        <select value={form.mistake} onChange={(e) => set('mistake', e.target.value)}
+          className="input-field cursor-pointer">
+          {MISTAKES.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
       </div>
 
       <div>
@@ -350,6 +363,9 @@ export default function TradeDetailModal({ trade, onClose }) {
                   value={trade.emotion ? `${EMOTIONS[trade.emotion]} ${EMOTION_LABELS[trade.emotion]}` : null} />
                 <Row label="Followed rules" value={trade.followedRules != null ? (trade.followedRules ? '✓ Yes' : '✗ No') : null}
                   valueClass={trade.followedRules ? 'text-win' : 'text-loss'} />
+                {trade.mistake && trade.mistake !== '' && (
+                  <Row label="Mistake" value={MISTAKE_LABELS[trade.mistake] ?? trade.mistake} valueClass="text-gold" />
+                )}
               </div>
 
               {/* Checklist */}

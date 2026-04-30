@@ -6,6 +6,7 @@ import { useTrades } from '../../context/TradeContext'
 import { analyzeTradeScreenshot, lookupSetupHistory } from '../../services/aiService'
 import { compressImageFile, uploadScreenshot } from '../../services/storageService'
 import { parseStrategyRules } from '../../utils/strategyParser'
+import { MISTAKES } from '../../utils/constants'
 import {
   calcPnL,
   calcRMultiple,
@@ -47,6 +48,7 @@ const EMPTY_FORM = {
   setupType: '',
   timeframe: '1H',
   emotion: 3,
+  mistake: '',
   notes: '',
   outcome: '',
   exitPrice: '',
@@ -632,6 +634,7 @@ export default function AddTradeModal({ isOpen, onClose }) {
         exitPrice: form.exitPrice ? parseFloat(form.exitPrice) : null,
         pnl: livePnL,
         rMultiple: liveR,
+        mistake: form.mistake || '',
         followedRules,
         checklist: strategyRules.map((rule, i) => ({ rule, checked: !!checklist[i] })),
         entryScreenshotUrl,
@@ -820,6 +823,17 @@ export default function AddTradeModal({ isOpen, onClose }) {
                     </div>
                     <Field label={`Pre-Trade Emotion — ${EMOTIONS.find((e) => e.value === form.emotion)?.label ?? ''}`}>
                       <EmotionPicker value={form.emotion} onChange={(v) => set('emotion', v)} />
+                    </Field>
+                    <Field label="Mistake Made (if any)">
+                      <select
+                        value={form.mistake}
+                        onChange={(e) => set('mistake', e.target.value)}
+                        className="input-field cursor-pointer"
+                      >
+                        {MISTAKES.map((m) => (
+                          <option key={m.value} value={m.value}>{m.label}</option>
+                        ))}
+                      </select>
                     </Field>
                   </div>
                 </div>
