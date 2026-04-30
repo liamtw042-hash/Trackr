@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useTrades } from '../context/TradeContext'
 import PatternInsights from '../components/dashboard/PatternInsights'
+import { MISTAKE_LABELS } from '../utils/constants'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid, Cell, AreaChart, Area,
@@ -152,6 +153,17 @@ export default function Analytics() {
       .filter((d) => d.trades > 0)
       .map((d) => ({ ...d, pnl: parseFloat(d.pnl.toFixed(2)) }))
   }, [closed])
+
+  // ── Mistakes ──────────────────────────────────────────────────────────────
+  const byMistake = useMemo(() => {
+    const m = {}
+    trades.filter((t) => t.mistake && t.mistake !== '').forEach((t) => {
+      const label = MISTAKE_LABELS[t.mistake] ?? t.mistake
+      if (!m[label]) m[label] = { name: label, count: 0 }
+      m[label].count++
+    })
+    return Object.values(m).sort((a, b) => b.count - a.count).slice(0, 8)
+  }, [trades])
 
   // ── Summary stats ─────────────────────────────────────────────────────────
   const summary = useMemo(() => {
@@ -342,6 +354,20 @@ export default function Analytics() {
           </div>
         </ChartCard>
       </div>
+
+      {/* Mistakes */}
+      {byMistake.length > 0 && (
+        <ChartCard title="Most Common Mistakes" subtitle="Frequency of logged trading mistakes">
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={byMistake} layout="vertical" margin={{ top:0,right:30,bottom:0,left:0 }}>
+              <XAxis type="number" tick={TICK} axisLine={false} tickLine={false} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" tick={TICK} axisLine={false} tickLine={false} width={130} />
+              <Tooltip {...TT} formatter={(v) => [v, 'Times']} />
+              <Bar dataKey="count" radius={[0,4,4,0]} fill="#f59e0b" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      )}
 
       {/* Pattern insights */}
       <PatternInsights trades={trades} userProfile={userProfile} user={user} />

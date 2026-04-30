@@ -1,6 +1,7 @@
 import { useOutletContext } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTrades } from '../context/TradeContext'
+import { MISTAKE_LABELS } from '../utils/constants'
 import { useMilestones } from '../hooks/useMilestones'
 import { mergeImportedStats } from '../utils/mergeStats'
 import { DashboardSkeleton } from '../components/shared/SkeletonCard'
@@ -162,6 +163,17 @@ export default function Dashboard() {
     ? ((accountBalance - startingBalance) / startingBalance) * 100
     : null
 
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const mistakeCountThisMonth = {}
+  trades.forEach((t) => {
+    if (t.mistake && t.mistake !== '' && new Date(t.tradeDate) >= monthStart) {
+      mistakeCountThisMonth[t.mistake] = (mistakeCountThisMonth[t.mistake] || 0) + 1
+    }
+  })
+  const topMistakeEntry = Object.entries(mistakeCountThisMonth).sort(([,a],[,b]) => b-a)[0]
+  const topMistakeLabel = topMistakeEntry ? (MISTAKE_LABELS[topMistakeEntry[0]] ?? topMistakeEntry[0]) : null
+
   const streakLabel = s.currentStreak > 0
     ? `${s.currentStreak} win${s.currentStreak !== 1 ? 's' : ''} 🔥`
     : s.currentStreak < 0
@@ -245,6 +257,13 @@ export default function Dashboard() {
             color={streakColor}
             sub={s.closed > 0 ? `${s.closed} closed trades` : undefined}
             icon={s.currentStreak > 0 ? '🔥' : s.currentStreak < 0 ? '❄️' : '➖'}
+          />
+          <StatCard
+            label="Top Mistake (Month)"
+            value={topMistakeLabel ?? 'None'}
+            sub={topMistakeEntry ? `${topMistakeEntry[1]}× this month` : 'Keep it clean!'}
+            color={topMistakeLabel ? 'text-gold' : 'text-win'}
+            icon="⚠️"
           />
         </div>
 
