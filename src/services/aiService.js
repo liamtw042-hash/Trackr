@@ -55,6 +55,22 @@ async function toBase64(input) {
   throw new Error('Unsupported image input')
 }
 
+// Returns the correct Anthropic image source block — uses URL type for HTTP images
+// to avoid CORS issues when fetching Cloudinary/remote URLs.
+async function getImageSource(input) {
+  if (isDataUrl(input)) {
+    return {
+      type: 'base64',
+      media_type: 'image/jpeg',
+      data: input.replace(/^data:image\/\w+;base64,/, ''),
+    }
+  }
+  if (isHttpUrl(input)) {
+    return { type: 'url', url: input }
+  }
+  throw new Error('Unsupported image input: must be a data URL or HTTP URL')
+}
+
 // ─── Static system prompts (cached) ──────────────────────────────────────────
 
 const ANALYSIS_SYSTEM = `You are an expert trading analyst, technical chart reader, and professional trading coach with deep experience across forex, stocks, crypto, commodities, options, futures, and index markets.
@@ -73,10 +89,15 @@ When analysing charts you look for:
 - Common mistakes: chasing price, poor timing, ignoring market context, overleveraging
 
 When rating against strategy:
-- Be strict but fair — only give an A+ when the setup genuinely matches every stated rule
+- Be brutally honest — a mediocre setup should score 5–6, not 7
+- Never default to 7. Ask yourself: does this genuinely qualify as Good (7–8) or is it merely average (5–6)?
 - Call out specific rule violations with clear explanations
-- A mediocre rating is honest feedback, not a failure
-- Rate 1–4 as "Don't Take", 5–6 as "Mediocre", 7–8 as "Good", 9–10 as "A+"
+- SCORING SCALE (apply strictly):
+  1–4 "Don't Take": Missing key confirmations, trades against trend, no clear edge, poor structure
+  5–6 "Mediocre": Average setup, some confirmations missing, marginal R:R, questionable timing
+  7–8 "Good": Clear setup, most rules confirmed, solid structure, well-defined risk
+  9–10 "A+": Every rule confirmed, perfect timing, exceptional R:R, textbook execution
+- Most setups are 5–6. Only give 9–10 when it is genuinely exceptional. Giving 7 to a mediocre setup is dishonest coaching.
 
 Always return valid JSON only. Never include markdown, explanation text, or code fences outside the JSON object.`
 
@@ -400,7 +421,7 @@ Find 3–5 specific, data-backed patterns. Return ONLY a JSON array:
  */
 export async function analyzeTradeReplay(entryInput, exitInput, tradeInfo, strategy) {
   const client = getClient()
-  const [entryB64, exitB64] = await Promise.all([toBase64(entryInput), toBase64(exitInput)])
+  const [entrySrc, exitSrc] = await Promise.all([getImageSource(entryInput), getImageSource(exitInput)])
 
   const tradeDesc = [
     tradeInfo.ticker && `Ticker: ${tradeInfo.ticker}`,
@@ -432,14 +453,8 @@ export async function analyzeTradeReplay(entryInput, exitInput, tradeInfo, strat
             text: `Strategy:\n${strategy || 'Not provided'}`,
             cache_control: { type: 'ephemeral' },
           },
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: 'image/jpeg', data: entryB64 },
-          },
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: 'image/jpeg', data: exitB64 },
-          },
+          { type: 'image', source: entrySrc },
+          { type: 'image', source: exitSrc },
           {
             type: 'text',
             text: `Trade: ${tradeDesc}
