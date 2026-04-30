@@ -226,6 +226,24 @@ export default function TradeDetailModal({ trade, onClose }) {
 
   if (!trade) return null
 
+  // Compute P&L from stored prices if it wasn't saved on the trade
+  const displayPnl = (() => {
+    if (trade.pnl != null) return trade.pnl
+    const entry = parseFloat(trade.entryPrice)
+    const exit = parseFloat(trade.exitPrice)
+    const size = parseFloat(trade.positionSize)
+    if (isNaN(entry) || isNaN(exit) || isNaN(size) || size <= 0) return null
+    return parseFloat(((trade.direction === 'long' ? exit - entry : entry - exit) * size).toFixed(2))
+  })()
+
+  const displayR = (() => {
+    if (displayPnl == null) return trade.rMultiple ?? null
+    if (trade.rMultiple != null) return trade.rMultiple
+    const risk = parseFloat(trade.riskAmount)
+    if (isNaN(risk) || risk <= 0) return null
+    return parseFloat((displayPnl / risk).toFixed(2))
+  })()
+
   const hasEntry = !!trade.entryScreenshotUrl
   const hasExit = !!trade.exitScreenshotUrl
   const canReplay = hasEntry && hasExit
@@ -260,7 +278,7 @@ export default function TradeDetailModal({ trade, onClose }) {
   }
 
   const dirColor = trade.direction === 'long' ? 'text-win' : 'text-loss'
-  const pnlColor = (trade.pnl ?? 0) >= 0 ? 'text-win' : 'text-loss'
+  const pnlColor = (displayPnl ?? 0) >= 0 ? 'text-win' : 'text-loss'
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
@@ -298,19 +316,19 @@ export default function TradeDetailModal({ trade, onClose }) {
             {/* Left — details */}
             <div className="p-6 space-y-5">
               {/* P&L hero */}
-              {trade.pnl != null && (
-                <div className={`p-4 rounded-xl border flex items-center justify-between ${trade.pnl >= 0 ? 'bg-win/5 border-win/20' : 'bg-loss/5 border-loss/20'}`}>
+              {displayPnl != null && (
+                <div className={`p-4 rounded-xl border flex items-center justify-between ${displayPnl >= 0 ? 'bg-win/5 border-win/20' : 'bg-loss/5 border-loss/20'}`}>
                   <div>
                     <div className="text-xs text-white/40 mb-0.5">P&L</div>
                     <div className={`text-3xl font-bold ${pnlColor}`}>
-                      {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}
+                      {displayPnl >= 0 ? '+' : ''}${displayPnl.toFixed(2)}
                     </div>
                   </div>
-                  {trade.rMultiple != null && (
+                  {displayR != null && (
                     <div className="text-right">
                       <div className="text-xs text-white/40 mb-0.5">R:R</div>
-                      <div className={`text-2xl font-bold ${trade.rMultiple >= 0 ? 'text-win' : 'text-loss'}`}>
-                        {trade.rMultiple >= 0 ? `1:${trade.rMultiple.toFixed(2)}` : `${trade.rMultiple.toFixed(2)}R`}
+                      <div className={`text-2xl font-bold ${displayR >= 0 ? 'text-win' : 'text-loss'}`}>
+                        {displayR >= 0 ? `1:${displayR.toFixed(2)}` : `${displayR.toFixed(2)}R`}
                       </div>
                     </div>
                   )}
