@@ -9,6 +9,7 @@ import {
   where,
   onSnapshot,
   serverTimestamp,
+  increment,
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { useAuth } from './AuthContext'
@@ -58,6 +59,15 @@ export function TradeProvider({ children }) {
     return unsubscribe
   }, [user?.uid]) // depend on uid only — avoids re-subscribing on object identity changes
 
+  const adjustBalance = useCallback(async (delta) => {
+    if (!user?.uid || delta == null || delta === 0) return
+    try {
+      await updateDoc(doc(db, 'users', user.uid), { accountBalance: increment(delta) })
+    } catch (err) {
+      console.error('Balance adjust failed:', err)
+    }
+  }, [user])
+
   const addTrade = useCallback(async (tradeData) => {
     if (!user) throw new Error('Not authenticated')
     const docRef = await addDoc(collection(db, 'trades'), {
@@ -66,19 +76,30 @@ export function TradeProvider({ children }) {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
+    if (tradeData.pnl != null) await adjustBalance(tradeData.pnl)
     return docRef.id
-  }, [user])
+  }, [user, adjustBalance])
 
   const updateTrade = useCallback(async (tradeId, updates) => {
+    const oldTrade = trades.find((t) => t.id === tradeId)
     await updateDoc(doc(db, 'trades', tradeId), {
       ...updates,
       updatedAt: serverTimestamp(),
     })
-  }, [])
+    // Adjust balance by the P&L delta only when pnl is explicitly in updates
+    if ('pnl' in updates) {
+      const oldPnl = oldTrade?.pnl ?? null
+      const newPnl = updates.pnl ?? null
+      const delta = (newPnl ?? 0) - (oldPnl ?? 0)
+      if (delta !== 0) await adjustBalance(delta)
+    }
+  }, [trades, adjustBalance])
 
   const deleteTrade = useCallback(async (tradeId) => {
+    const oldTrade = trades.find((t) => t.id === tradeId)
     await deleteDoc(doc(db, 'trades', tradeId))
-  }, [])
+    if (oldTrade?.pnl != null) await adjustBalance(-oldTrade.pnl)
+  }, [trades, adjustBalance])
 
   const stats = useCallback(() => {
     if (!trades.length) return {

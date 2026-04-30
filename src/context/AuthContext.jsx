@@ -6,7 +6,7 @@ import {
   onAuthStateChanged,
   updateProfile,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, setDoc, getDoc, onSnapshot, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from '../firebase/config'
 
 const AuthContext = createContext(null)
@@ -17,32 +17,35 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser)
-      if (firebaseUser) {
-        await fetchUserProfile(firebaseUser.uid)
-      } else {
-        setUserProfile(null)
-      }
-      setLoading(false)
-    })
-    return unsubscribe
-  }, [])
+    let profileUnsub = null
 
-  async function fetchUserProfile(uid) {
-    try {
-      const docRef = doc(db, 'users', uid)
-      const docSnap = await getDoc(docRef)
-      if (docSnap.exists()) {
-        setUserProfile(docSnap.data())
+    const authUnsub = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser)
+
+      // Clean up any previous profile listener
+      if (profileUnsub) { profileUnsub(); profileUnsub = null }
+
+      if (firebaseUser) {
+        // Real-time listener — updates whenever balance or any profile field changes
+        profileUnsub = onSnapshot(
+          doc(db, 'users', firebaseUser.uid),
+          (snap) => {
+            setUserProfile(snap.exists() ? snap.data() : null)
+            setLoading(false)
+          },
+          (err) => {
+            console.error('Profile listener error:', err)
+            setLoading(false)
+          }
+        )
       } else {
         setUserProfile(null)
+        setLoading(false)
       }
-    } catch (err) {
-      console.error('Error fetching profile:', err)
-      setUserProfile(null)
-    }
-  }
+    })
+
+    return () => { authUnsub(); if (profileUnsub) profileUnsub() }
+  }, [])
 
   async function signup(email, password, displayName) {
     const result = await createUserWithEmailAndPassword(auth, email, password)
@@ -90,7 +93,7 @@ export function AuthProvider({ children }) {
     logout,
     saveUserProfile,
     completeOnboarding,
-    refreshProfile: () => user && fetchUserProfile(user.uid),
+    refreshProfile: () => {}, // no-op — profile updates via real-time listener now
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
