@@ -608,3 +608,75 @@ Return ONLY valid JSON.`,
 
   return { found: true, matches, stats: result.stats, keyLesson: result.keyLesson }
 }
+
+// ─── Weekly review AI suggestions ─────────────────────────────────────────────
+
+export async function generateWeeklyReviewSuggestions(weekTrades, strategy) {
+  const client = getClient()
+  if (!weekTrades.length) return { wellWent: '', wentWrong: '', lessons: '', goals: '' }
+
+  const wins = weekTrades.filter((t) => t.outcome === 'win').length
+  const losses = weekTrades.filter((t) => t.outcome === 'loss').length
+  const pnl = weekTrades.reduce((s, t) => s + (t.pnl ?? 0), 0)
+
+  const details = weekTrades.map((t) =>
+    `${t.ticker ?? '?'} ${t.direction ?? ''} ${t.outcome ?? 'open'} $${t.pnl?.toFixed(2) ?? '—'} ${t.setupType ?? ''}${t.mistake ? ` [mistake:${t.mistake}]` : ''}`
+  ).join('\n')
+
+  const message = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 600,
+    system: 'You are a trading performance coach. Be specific, reference actual trade data, and be honest. Return ONLY valid JSON.',
+    messages: [{
+      role: 'user',
+      content: `Week: ${wins}W/${losses}L, P&L: $${pnl.toFixed(2)}\nStrategy: ${strategy || 'Not provided'}\nTrades:\n${details}\n\nGenerate weekly review suggestions. Return JSON only:\n{\n  "wellWent": "2-3 sentences about genuine positives with specific references",\n  "wentWrong": "2-3 sentences about what went wrong or could improve",\n  "lessons": "1-2 key lessons from this week",\n  "goals": "1-2 specific actionable goals for next week"\n}`,
+    }],
+  })
+
+  try {
+    const text = message.content[0].text.trim()
+    const m = text.match(/\{[\s\S]*\}/)
+    return JSON.parse(m ? m[0] : text)
+  } catch {
+    return { wellWent: '', wentWrong: '', lessons: '', goals: '' }
+  }
+}
+
+// ─── AI Trade Coach chat ───────────────────────────────────────────────────────
+
+export async function generateChatResponse(messages, trades, userProfile) {
+  const client = getClient()
+
+  const closed = trades.filter((t) => t.outcome)
+  const wins = closed.filter((t) => t.outcome === 'win').length
+  const totalPnL = closed.reduce((s, t) => s + (t.pnl ?? 0), 0)
+  const winRate = closed.length ? (wins / closed.length * 100).toFixed(1) : 0
+
+  const mistakeCount = {}
+  closed.forEach((t) => { if (t.mistake) mistakeCount[t.mistake] = (mistakeCount[t.mistake] || 0) + 1 })
+  const topMistakes = Object.entries(mistakeCount).sort(([,a],[,b]) => b-a).slice(0,3).map(([k,v]) => `${k}(${v}x)`).join(', ')
+
+  const recentSummary = trades.slice(0, 15).map((t) =>
+    `${t.ticker ?? '?'} ${t.direction ?? ''} ${t.outcome ?? 'open'} $${t.pnl?.toFixed(2) ?? '—'}${t.mistake ? ` [${t.mistake}]` : ''}`
+  ).join('; ')
+
+  const systemPrompt = `You are an expert AI trading coach with deep knowledge of trading psychology, technical analysis, and risk management.
+
+Trader data:
+- ${trades.length} trades total, ${closed.length} closed
+- Win rate: ${winRate}%, Total P&L: $${totalPnL.toFixed(2)}
+- Balance: $${userProfile?.accountBalance ?? '?'}
+- Strategy: ${userProfile?.strategy?.slice(0, 300) || 'Not set'}${topMistakes ? `\n- Common mistakes: ${topMistakes}` : ''}
+- Recent: ${recentSummary}
+
+Rules: Reference this trader's ACTUAL data. Be direct and honest. Keep responses concise (2–4 sentences unless more detail is needed). No generic advice.`
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 500,
+    system: systemPrompt,
+    messages,
+  })
+
+  return response.content[0].text.trim()
+}
