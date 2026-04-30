@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import TradeLog from './pages/TradeLog'
 import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
+import WeeklyReview from './pages/WeeklyReview'
 import LoadingScreen from './components/shared/LoadingScreen'
 
 function PrivateRoute({ children }) {
@@ -51,6 +52,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="trades" element={<TradeLog />} />
         <Route path="analytics" element={<Analytics />} />
+        <Route path="weekly-review" element={<WeeklyReview />} />
         <Route path="settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
