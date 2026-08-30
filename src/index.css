@@ -1,4 +1,4 @@
-/* ════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════
    TYPEFACES
 
    Instrument Sans (Rodrigo Fuenzalida / Jeremy Mickel, 2023) for everything
@@ -15,7 +15,7 @@
    numbers in this app are actually read at.
 
    Both are variable, so the whole weight range costs one file per subset.
-   ════════════════════════════════════════════════════════════════════ */
+   ═════════════════════════════════════════════════════════════════ */
 @import '@fontsource-variable/instrument-sans/wght.css';
 @import '@fontsource-variable/geist-mono/wght.css';
 
@@ -115,7 +115,7 @@
 }
 
 @layer components {
-  /* ══ PLANES ══════════════════════════════════════════════════════════════════
+  /* ══ PLANES ═══════════════════════════════════════════════════════════════════════
      Four tiers, deliberately unequal, and each one is a *plane* rather than a
      bordered box: background step + top-edge highlight + ambient shadow. That
      combination is what gives depth without either a glow or the soft grey
@@ -167,7 +167,7 @@
     @apply bg-ink-850;
   }
 
-  /* ══ HAIRLINES ═══════════════════════════════════════════════════════════════
+  /* ══ HAIRLINES ═══════════════════════════════════════════════════════════════════
      A rule that fades out at both ends. A full-bleed 1px line boxes things in;
      a fading one separates without drawing a wall. */
   .hairline {
@@ -187,7 +187,7 @@
     background: linear-gradient(to bottom, transparent, var(--edge) 15%, var(--edge) 85%, transparent);
   }
 
-  /* ══ LABELS ══════════════════════════════════════════════════════════════════
+  /* ══ LABELS ═══════════════════════════════════════════════════════════════════════
      Small caps labels carry the load borders used to. Tracking is 0.08em, not
      the 0.11em of the previous build — wide-tracked caps past a point start
      reading as a 2012 dashboard header rather than a legend. */
@@ -220,7 +220,7 @@
     @apply text-display font-semibold text-ink-50 tracking-tighter;
   }
 
-  /* ══ INPUTS ══════════════════════════════════════════════════════════════════
+  /* ══ INPUTS ═══════════════════════════════════════════════════════════════════════
      Inputs keep a border, because here it IS information: it marks the
      editable region. Everything else giving its border up is what makes that
      read. Focus lifts the plane slightly as well as colouring the edge. */
@@ -261,7 +261,7 @@
     @apply rounded-sm;
   }
 
-  /* ══ BUTTONS ═════════════════════════════════════════════════════════════════
+  /* ══ BUTTONS ══════════════════════════════════════════════════════════════════════
      Every button has a top-edge highlight and depresses 1px on click. The
      press is the smallest possible motion that still confirms the input, and
      it is the difference between a control that feels physical and a
@@ -338,7 +338,7 @@
     @apply px-4 py-2 text-sm;
   }
 
-  /* ══ TABLES ══════════════════════════════════════════════════════════════════
+  /* ══ TABLES ═══════════════════════════════════════════════════════════════════════
      Row separators stay — in a dense numeric table a hairline does real work
      aligning the eye across columns — but they are softer, the outer border is
      gone entirely, and the hover is a fast background change plus an accent
@@ -347,10 +347,29 @@
     @apply w-full border-collapse text-2xs;
   }
 
+  /* Wrapper for a table that may be wider than its column.
+     A sticky header and a horizontal scroll container cannot coexist: any
+     non-visible overflow makes the wrapper the containing block, so the header
+     sticks to a box as tall as the table and therefore never moves. (`clip` is
+     no escape — paired with `auto` on the other axis it computes to `hidden`.)
+     So the scroll container only exists where it is actually needed. Above this
+     width the table fits and the header sticks; below it, the table scrolls
+     sideways and gives the sticky header up, which is the right trade on a
+     screen too small to show the columns anyway. */
+  @media (max-width: 1279px) {
+    .tbl-wrap {
+      overflow-x: auto;
+    }
+  }
+
   .tbl thead th {
-    @apply sticky top-0 z-10 bg-ink-850/95 text-azure-dim
+    @apply sticky z-10 bg-ink-850/95 text-azure-dim
            text-3xs font-semibold uppercase tracking-label
            text-left px-3 py-2.5 whitespace-nowrap;
+    /* Sticks BELOW the top bar, not under it. top-0 parks the header behind the
+       52px translucent header, which reads as the column labels having simply
+       scrolled away — the one thing a sticky header exists to prevent. */
+    top: 52px;
     backdrop-filter: blur(6px);
     box-shadow: inset 0 -1px 0 var(--edge);
   }
@@ -399,7 +418,7 @@
     @apply text-right font-mono;
   }
 
-  /* ══ VALUES ══════════════════════════════════════════════════════════════════ */
+  /* ══ VALUES ═══════════════════════════════════════════════════════════════════════ */
   .val-up {
     @apply text-up;
   }
@@ -410,7 +429,7 @@
     @apply text-ink-400;
   }
 
-  /* ══ TAGS ════════════════════════════════════════════════════════════════════ */
+  /* ══ TAGS ═════════════════════════════════════════════════════════════════════════ */
   .tag {
     @apply inline-flex items-center px-[5px] py-px text-3xs font-semibold rounded-sm
            uppercase tracking-label;
@@ -432,7 +451,7 @@
     box-shadow: inset 0 0 0 1px rgba(127, 180, 232, 0.22);
   }
 
-  /* ══ MISC ════════════════════════════════════════════════════════════════════ */
+  /* ══ MISC ═════════════════════════════════════════════════════════════════════════ */
   /* A sweep rather than a pulse: loading reads as progress in one direction
      instead of the whole block blinking. */
   .skel {

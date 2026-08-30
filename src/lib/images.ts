@@ -83,6 +83,9 @@ export async function uploadImage(
     const body = new FormData()
     body.append('file', dataUrl)
     body.append('upload_preset', preset)
+    // Deliberately still "trackr" after the rename. Every screenshot already
+    // uploaded lives under this folder, and changing it would split the media
+    // library in two for no benefit — the stored URLs are absolute either way.
     body.append('folder', `trackr/${userId}/${kind}`)
 
     const res = await withTimeout(

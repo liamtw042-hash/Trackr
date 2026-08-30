@@ -5,9 +5,10 @@ import { useTrades } from '@/store/TradeContext'
 import { extractTicket, aiConfigured } from '@/lib/ai'
 import { compressImage, uploadImage } from '@/lib/images'
 import {
-  estimatePnl, outcomeFromPnl, positionSizeFor, rMultiple, riskAmountFor,
-  riskPercentFor, stopDistance, plannedRR, num, fmtMoney, fmtR,
+  estimatePnl, outcomeFromPnl, rMultiple, riskAmountFor,
+  riskPercentFor, stopDistance, plannedRR, num, fmtMoney, fmtR, round,
 } from '@/lib/calc'
+import { resolveRate } from '@/lib/fx'
 import { emptyRules, FX_PAIRS, TIMEFRAMES, MISTAKES, EMOTIONS } from '@/types'
 import type { Direction, RuleState, TicketExtract, TradeDraft } from '@/types'
 import {
@@ -35,6 +36,7 @@ interface FormState {
   positionSize: string
   riskAmount: string
   riskPercent: string
+  conversionRate: string
   tradeDate: string
   timeframe: string
   setupType: string
@@ -57,7 +59,7 @@ function localNow(): string {
 function blankForm(defaultRisk: number): FormState {
   return {
     ticker: '', direction: 'long', entryPrice: '', stopLoss: '', takeProfit: '',
-    positionSize: '', riskAmount: '', riskPercent: String(defaultRisk),
+    positionSize: '', riskAmount: '', riskPercent: String(defaultRisk), conversionRate: '',
     tradeDate: localNow(), timeframe: '4H', setupType: '',
     status: 'open', exitPrice: '', exitDate: '', pnl: '', finalStopLoss: '',
     emotion: '3', mistake: '', notes: '',
@@ -121,7 +123,20 @@ export function LogTrade({
 
     const dist = stopDistance({ direction, entryPrice, stopLoss })
     const rr = plannedRR({ direction, entryPrice, stopLoss, takeProfit })
-    const suggestedSize = positionSizeFor({ direction, entryPrice, stopLoss, riskAmount })
+
+    // Position size needs the quote currency, not just the stop distance.
+    // risk / dist alone assumes the pair settles in AUD, which is true only for
+    // XXX/AUD; on GBP/JPY it under-sizes by roughly 112x. Where the rate can't
+    // be determined the suggestion is withheld rather than guessed — a wrong
+    // size suggestion is worse than none, because it looks authoritative.
+    const rate = resolveRate({
+      ticker: form.ticker, direction, entryPrice, exitPrice,
+      positionSize, pnl: num(form.pnl), conversionRate: num(form.conversionRate),
+    })
+    const suggestedSize =
+      dist !== null && riskAmount !== null && riskAmount > 0 && rate.rate !== null && rate.rate > 0
+        ? round(riskAmount / (dist * rate.rate), 0)
+        : null
 
     // A typed P&L always wins over one derived from price — the broker figure
     // accounts for the currency conversion and financing that price alone can't.
@@ -130,7 +145,7 @@ export function LogTrade({
     const pnl = typedPnl ?? estimated
 
     return {
-      dist, rr, suggestedSize, estimated, pnl,
+      dist, rr, suggestedSize, estimated, pnl, rate,
       r: rMultiple(pnl, riskAmount),
       outcome: outcomeFromPnl(pnl),
       // Warn when the stop is on the wrong side of entry — a sign the direction
@@ -274,6 +289,8 @@ export function LogTrade({
         positionSize: num(form.positionSize),
         riskAmount,
         riskPercent: num(form.riskPercent),
+        // Only a rate we actually know, never an inferred one — see src/lib/fx.ts.
+        conversionRate: num(form.conversionRate) ?? (derived.rate.exact ? derived.rate.rate : null),
 
         tradeDate: form.tradeDate || localNow(),
         exitDate: isClosed ? (form.exitDate || localNow()) : null,
@@ -314,7 +331,7 @@ export function LogTrade({
     } finally {
       setSaving(false)
     }
-  }, [user, form, rules, ticketImage, entryImage, exitImage, derived.pnl, addTrade, onClose])
+  }, [user, form, rules, ticketImage, entryImage, exitImage, derived.pnl, derived.rate, addTrade, onClose])
 
   // Ctrl/Cmd+Enter saves from anywhere in the form.
   useEffect(() => {
@@ -462,6 +479,8 @@ export function LogTrade({
                   >
                     use {derived.suggestedSize.toLocaleString()}
                   </button>
+                ) : derived.rate.rate === null && derived.rate.quote ? (
+                  <>needs a {derived.rate.quote} rate</>
                 ) : undefined
               }
             >
@@ -473,6 +492,26 @@ export function LogTrade({
               />
             </Field>
           </div>
+
+          {/* Only asked for when it is genuinely needed. On XXX/AUD there is no
+              conversion, and on AUD/XXX the price itself gives the rate — in
+              both cases this row stays out of the way. It appears for a cross
+              like GBP/JPY, where nothing on screen can supply it. */}
+          {derived.rate.rate === null && derived.rate.quote && (
+            <div className="animate-rise-sm">
+              <Field
+                label={`${derived.rate.quote} → AUD rate`}
+                hint={`${form.ticker.toUpperCase()} settles in ${derived.rate.quote}. Without this, risk and unit sizing are in the wrong currency. CMC shows it on the order ticket.`}
+              >
+                <Input
+                  mono type="number" step="any" inputMode="decimal"
+                  value={form.conversionRate}
+                  onChange={(e) => set('conversionRate', e.target.value)}
+                  placeholder="0.00"
+                />
+              </Field>
+            </div>
+          )}
 
           {/* ── Status ── */}
           <div className="pt-1">
@@ -510,7 +549,7 @@ export function LogTrade({
                   label="P&L $"
                   hint={
                     !pnlTouched.current && derived.estimated !== null
-                      ? 'Estimated from price — replace with CMC\u2019s figure'
+                      ? 'Estimated from price — replace with CMC’s figure'
                       : 'From CMC'
                   }
                 >
@@ -533,8 +572,8 @@ export function LogTrade({
 
               {derived.pnl !== null && (
                 <div
-                  className={`flex items-center justify-between px-3 py-2 border
-                    ${derived.pnl >= 0 ? 'bg-up-wash rounded-md' : 'bg-down-wash rounded-md'}`}
+                  className={`flex items-center justify-between px-3 py-2 rounded-md
+                    ${derived.pnl >= 0 ? 'bg-up-wash' : 'bg-down-wash'}`}
                 >
                   <span className="text-2xs uppercase tracking-label text-ink-300">Result</span>
                   <div className="flex items-center gap-4 font-mono">
@@ -694,4 +733,3 @@ export function LogTrade({
     </Modal>
   )
 }
-

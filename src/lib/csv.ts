@@ -2,8 +2,9 @@ import Papa from 'papaparse'
 import type { Direction, TradeDraft } from '@/types'
 import { emptyRules } from '@/types'
 import { outcomeFromPnl, rMultiple, round } from './calc'
+import { resolveRisk } from './fx'
 
-// ────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
 // CMC Markets CSV import.
 //
 // CMC's export format is not stable — the column set differs between the
@@ -11,7 +12,7 @@ import { outcomeFromPnl, rMultiple, round } from './calc'
 // platform versions. So rather than hard-coding column indices, this matches
 // headers by keyword and reports exactly what it found, letting you see and
 // correct the mapping before anything is written.
-// ────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
 
 export interface ParsedRow {
   raw: Record<string, string>
@@ -41,7 +42,8 @@ export interface ParseReport {
 
 export type FieldKey =
   | 'ticker' | 'direction' | 'entryPrice' | 'exitPrice' | 'stopLoss'
-  | 'takeProfit' | 'size' | 'pnl' | 'openedAt' | 'closedAt' | 'risk'
+  | 'takeProfit' | 'size' | 'pnl' | 'openedAt' | 'closedAt' | 'risk' | 'fxRate'
+  | 'setup'
 
 /** Field metadata, for the column-mapping editor. */
 export const FIELDS: { key: FieldKey; label: string; required: boolean; hint: string }[] = [
@@ -60,6 +62,13 @@ export const FIELDS: { key: FieldKey; label: string; required: boolean; hint: st
   // cross comes out ~112x too big. If the file carries a risk already
   // converted to AUD, it beats anything derivable here.
   { key: 'risk', label: 'Risk $', required: false, hint: 'Already in AUD. Overrides the stop-distance estimate' },
+  // CMC's export carries this on the closing row. With it, risk converts to
+  // AUD exactly instead of being back-solved from P&L.
+  { key: 'fxRate', label: 'Conversion rate', required: false, hint: 'Quote currency to AUD. CMC calls it "Conversion Rate"' },
+  // Free text, and the axis the Analysis page compares on. A file that tags
+  // each row with the strategy it came from turns "By setup" into a real
+  // before/after — which is the whole reason to keep old trades in the journal.
+  { key: 'setup', label: 'Setup / strategy', required: false, hint: 'Groups trades on the Analysis page' },
 ]
 
 export const REQUIRED_FIELDS: FieldKey[] = FIELDS.filter((f) => f.required).map((f) => f.key)
@@ -81,6 +90,8 @@ const HEADER_PATTERNS: { key: FieldKey; patterns: RegExp[] }[] = [
   { key: 'openedAt', patterns: [/open(ed)?\s*(date|time)/i, /date\s*opened/i, /^date$/i, /trade\s*date/i] },
   { key: 'closedAt', patterns: [/clos(e|ed|ing)\s*(date|time)/i, /date\s*closed/i] },
   { key: 'risk', patterns: [/^risk(\s*\$|\s*aud|\s*amount)?$/i, /risk\s*per\s*trade/i, /^1r$/i] },
+  { key: 'fxRate', patterns: [/conversion\s*rate/i, /^fx\s*rate$/i, /exchange\s*rate/i] },
+  { key: 'setup', patterns: [/^strategy$/i, /^setup$/i, /setup\s*type/i, /^system$/i] },
 ]
 
 function buildMapping(headers: string[]): Partial<Record<FieldKey, string>> {
@@ -226,6 +237,7 @@ export function parseCmcCsv(
     const size = parseNumber(get(raw, 'size'))
     const pnl = parseNumber(get(raw, 'pnl'))
     const riskColumn = parseNumber(get(raw, 'risk'))
+    const fxRate = parseNumber(get(raw, 'fxRate'))
     const openedAt = parseDate(get(raw, 'openedAt'))
     const closedAt = parseDate(get(raw, 'closedAt'))
 
@@ -253,23 +265,22 @@ export function parseCmcCsv(
 
     // What was at risk on THIS trade, in three descending orders of trust.
     //
-    // 1. A risk column in the file. The only source that can already be in the
+    // 1. A risk column in the file. The only source already stated in the
     //    account currency, so it wins outright.
-    // 2. Stop distance × position size. Correct only for a pair quoted in the
-    //    account currency: the product lands in the QUOTE currency, so on a
-    //    JPY cross it is out by the JPY/AUD rate, roughly 112x. There is no FX
-    //    rate here to fix that with, which is why Risk $ is editable on the
-    //    trade itself and why the column above exists.
+    // 2. Stop distance × size, CONVERTED. The raw product lands in the quote
+    //    currency, so on a JPY cross it is out by roughly 112x. resolveRisk
+    //    applies the file's conversion rate when there is one, and otherwise
+    //    back-solves it from the broker's P&L — see src/lib/fx.ts.
     // 3. Today's balance × the default risk percent. A last resort, and wrong
     //    for every historical row in a different way: it date-stamps old
     //    R-multiples with the current account size.
-    const derivedRisk =
-      stopLoss !== null && size !== null
-        ? round(Math.abs(entryPrice - stopLoss) * Math.abs(size), 2)
-        : null
+    const resolved = resolveRisk({
+      ticker, direction, entryPrice, exitPrice, positionSize: size,
+      pnl, conversionRate: fxRate, stopLoss,
+    })
     const riskAmount =
       riskColumn ??
-      derivedRisk ??
+      resolved.amount ??
       (opts.accountBalance
         ? round((opts.accountBalance * opts.defaultRiskPercent) / 100, 2)
         : null)
@@ -296,6 +307,9 @@ export function parseCmcCsv(
       takeProfit,
       positionSize: size,
       riskAmount,
+      // Only kept when it is a real rate, not one this file made up. An
+      // inferred rate would then masquerade as the broker's on every later read.
+      conversionRate: fxRate ?? (resolved.rate.exact ? resolved.rate.rate : null),
       riskPercent:
         riskAmount !== null && opts.accountBalance
           ? round((riskAmount / opts.accountBalance) * 100, 2)
@@ -310,7 +324,7 @@ export function parseCmcCsv(
       pnl,
       rMultiple: rMultiple(pnl, riskAmount),
 
-      setupType: '',
+      setupType: (get(raw, 'setup') ?? '').trim(),
       timeframe: '4H',
       emotion: null,
       mistake: '',

@@ -6,8 +6,9 @@ import { readChart, reviewTrade, aiConfigured } from '@/lib/ai'
 import { uploadImage } from '@/lib/images'
 import {
   estimatePnl, outcomeFromPnl, rMultiple, num, fmtMoney, fmtR, fmtDateTime,
-  fmtPrice, valueClass, stopDistance, riskPercentFor, round,
+  fmtPrice, valueClass, stopDistance, riskPercentFor,
 } from '@/lib/calc'
+import { resolveRisk, riskLooksUnconverted, type RiskResolution } from '@/lib/fx'
 import { RULES, MISTAKE_LABELS, EMOTIONS, type ChartRead, type RuleState, type Trade } from '@/types'
 import {
   Modal, Field, Input, Select, Textarea, Segmented, Spinner, Tag,
@@ -33,31 +34,36 @@ function localFromIso(iso: string | null): string {
 }
 
 /**
- * Risk in dollars, editable.
+ * Risk in dollars, editable, with the currency conversion shown.
  *
- * It used to be derived and fixed: stop distance x position size. That is only
- * the AUD risk when the pair is quoted in AUD (EUR/AUD, GBP/AUD). On any other
- * cross the product is in the quote currency, so a JPY pair comes out about
- * 112x too big and its R-multiple lands near zero. R is the primary metric in
- * this app, so a wrong risk quietly corrupts expectancy, the rule comparisons
- * and the R distribution all at once.
+ * The figure used to be derived and fixed: stop distance x position size. That
+ * product is in the pair's QUOTE currency, so it is the AUD risk only for a
+ * pair quoted in AUD. On a JPY cross it is out by about 112x, and because R is
+ * pnl / risk, the trade then records -0.01R instead of -1.01R. R is the primary
+ * metric here, so that one wrong number quietly drags expectancy, every rule
+ * comparison and the whole R distribution toward zero.
  *
- * Rather than guess an FX rate the app does not have, the figure is editable
- * and the derived one is offered as a starting point.
+ * src/lib/fx.ts resolves the rate from what the trade already knows and says
+ * how good the answer is. This surfaces that and lets the user accept it — it
+ * never rewrites the stored figure on its own.
  */
 function RiskField({
-  value, onChange, quoteRisk, suspect, ticker, balance,
+  value, onChange, resolution, stale, balance,
 }: {
   value: string
   onChange: (v: string) => void
-  quoteRisk: number | null
-  suspect: boolean
-  ticker: string
+  resolution: RiskResolution
+  stale: boolean
   balance: number | null
 }) {
   const v = num(value)
   const pct = balance ? riskPercentFor(balance, v) : null
-  const quote = ticker.includes('/') ? ticker.split('/')[1] : null
+  const { rate, amount, quoteAmount, converted } = resolution
+
+  // Offer the converted figure only when it is meaningfully different from
+  // what is in the box. Offering a number the field already holds is noise.
+  const offer =
+    amount !== null && converted && (v === null || Math.abs(v - amount) > 0.01) ? amount : null
 
   return (
     <div>
@@ -77,26 +83,43 @@ function RiskField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="0.00"
-          className={suspect ? '!border-down' : ''}
+          className={stale ? '!border-down' : ''}
         />
       </Field>
 
-      {suspect && (
+      {stale && (
         <div className="edge-note-warn text-2xs text-ink-200 leading-relaxed mt-2 py-0.5 animate-rise-sm">
-          This looks like the raw stop distance times units, which for{' '}
-          <span className="font-mono">{ticker}</span> is in{' '}
-          <span className="font-mono">{quote ?? 'the quote currency'}</span>, not AUD. Convert it
-          before trusting the R.
+          This is the raw stop distance times units, which is in{' '}
+          <span className="font-mono">{rate.quote ?? 'the quote currency'}</span>, not AUD.
         </div>
       )}
 
-      {quoteRisk !== null && v !== null && Math.abs(v - quoteRisk) > 0.01 && (
+      {(offer !== null || rate.source === 'unknown') && (
+        <div className="mt-2 space-y-1.5 animate-rise-sm">
+          <p className="text-2xs text-ink-400 leading-relaxed">{rate.explain}</p>
+          {offer !== null && (
+            <button type="button" onClick={() => onChange(String(offer))} className="btn-quiet btn-sm">
+              Use {fmtMoney(offer)}
+              {quoteAmount !== null && (
+                <span className="text-ink-500 font-mono">
+                  {' '}(was {quoteAmount.toLocaleString()} {rate.quote})
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Only offered where it is not already implied. Reverting to a figure in
+          the wrong currency is a valid thing to want, but it should take a
+          deliberate click rather than sitting next to the corrected one. */}
+      {!converted && quoteAmount !== null && v !== null && Math.abs(v - quoteAmount) > 0.01 && (
         <button
           type="button"
-          onClick={() => onChange(String(quoteRisk))}
+          onClick={() => onChange(String(quoteAmount))}
           className="btn-quiet btn-sm mt-1.5"
         >
-          Reset to stop x units ({quoteRisk.toLocaleString()})
+          Reset to stop x units ({quoteAmount.toLocaleString()})
         </button>
       )}
     </div>
@@ -226,27 +249,31 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
     const finalPnl = typed ?? estimated
     const editedRisk = num(risk)
 
-    // What the app would derive from the stop, for comparison. This is stop
-    // distance x units in the QUOTE currency, which is only the AUD risk when
-    // the pair is quoted in AUD. On a JPY cross it is out by the JPY/AUD rate,
-    // roughly 112x, which is why the figure has to be editable at all.
-    const quoteRisk =
-      trade.stopLoss !== null && trade.entryPrice !== null && trade.positionSize !== null
-        ? round(Math.abs(trade.entryPrice - trade.stopLoss) * Math.abs(trade.positionSize), 2)
-        : null
+    // The AUD risk this trade actually carried, with the conversion resolved
+    // from whatever the trade knows — see src/lib/fx.ts. Nothing here writes
+    // to the trade; it only offers.
+    const resolution = resolveRisk({
+      ticker: trade.ticker,
+      direction: trade.direction,
+      entryPrice: trade.entryPrice,
+      exitPrice: num(exitPrice) ?? trade.exitPrice,
+      positionSize: trade.positionSize,
+      pnl: finalPnl,
+      conversionRate: trade.conversionRate,
+      stopLoss: trade.stopLoss,
+    })
 
     return {
       estimated,
       pnl: finalPnl,
       risk: editedRisk,
-      quoteRisk,
-      // A cross pair gives itself away: the derived figure is a different order
-      // of magnitude from the money that actually moved.
-      suspect:
-        quoteRisk !== null && editedRisk !== null &&
-        Math.abs(editedRisk - quoteRisk) < 0.01 &&
-        finalPnl !== null && Math.abs(finalPnl) > 0 &&
-        (quoteRisk / Math.abs(finalPnl) > 5 || Math.abs(finalPnl) / quoteRisk > 5),
+      resolution,
+      // Is the number in the box still the unconverted one?
+      stale: riskLooksUnconverted({
+        storedRisk: editedRisk,
+        quoteRisk: resolution.quoteAmount,
+        pnl: finalPnl,
+      }),
       r: rMultiple(finalPnl, editedRisk),
       outcome: outcomeFromPnl(finalPnl),
       oneR: stopDistance({
@@ -436,14 +463,15 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
             />
           </div>
 
-          <RiskField
-            value={risk}
-            onChange={setRisk}
-            quoteRisk={derived?.quoteRisk ?? null}
-            suspect={derived?.suspect ?? false}
-            ticker={trade.ticker}
-            balance={profile?.accountBalance ?? null}
-          />
+          {derived && (
+            <RiskField
+              value={risk}
+              onChange={setRisk}
+              resolution={derived.resolution}
+              stale={derived.stale}
+              balance={profile?.accountBalance ?? null}
+            />
+          )}
 
           {status === 'closed' && (
             <div className="space-y-2 animate-rise">

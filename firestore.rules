@@ -1,7 +1,7 @@
 rules_version = '2';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Trackr Firestore rules.
+// Fills Firestore rules.
 //
 // Single-user tool: every document is owned by exactly one uid and is only
 // readable or writable by that uid. There is no sharing, so there is no case

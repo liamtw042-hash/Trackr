@@ -48,7 +48,7 @@ export function SignIn() {
             <path d="M1 12.5L4.5 7L8 9.5L11 3.5L15 6" stroke="currentColor" strokeWidth="1.5"
               strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span className="font-semibold text-ink-50 tracking-tighter text-[15px]">Trackr</span>
+          <span className="font-semibold text-ink-50 tracking-tighter text-[15px]">Fills</span>
         </div>
 
         <form onSubmit={submit} className="surface-raised animate-rise">

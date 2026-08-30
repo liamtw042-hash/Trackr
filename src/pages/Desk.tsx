@@ -81,7 +81,7 @@ export function Desk() {
 
   if (!trades.length) {
     return (
-      <Section title="Trackr" tier="hero">
+      <Section title="Fills" tier="hero">
         <Empty
           title="Nothing logged yet"
           detail="Screenshot a CMC ticket and the numbers fill themselves in, import your history as CSV, or type it in by hand."
@@ -99,7 +99,7 @@ export function Desk() {
   return (
     <div className="space-y-section">
 
-      {/* ══ 1. THE EDGE QUESTION ═══════════════════════════════════════════════
+      {/* ══ 1. THE EDGE QUESTION ═══════════════════════════════════════════════════
           Largest element on the page, because it's the thing he most wants to
           know and the thing most easily got wrong by reading a point estimate. */}
       <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,340px)_1fr] gap-8 lg:gap-10 items-start">
@@ -174,7 +174,7 @@ export function Desk() {
         </Section>
       </section>
 
-      {/* ══ 2. OPEN — the only actionable thing ═══════════════════════════════ */}
+      {/* ══ 2. OPEN — the only actionable thing ══════════════════════════════════ */}
       {open.length > 0 && (
         <Section
           title="Open"
@@ -224,7 +224,7 @@ export function Desk() {
         </Section>
       )}
 
-      {/* ══ 3. WHAT THE JOURNAL CAN'T ANSWER YET ══════════════════════════════
+      {/* ══ 3. WHAT THE JOURNAL CAN'T ANSWER YET ════════════════════════════════
           Only appears when there's a real gap. A closed trade with no rules
           recorded is invisible to every rule comparison, and without saying so
           the analysis looks equally authoritative on 8 trades as on 29. */}

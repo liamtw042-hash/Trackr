@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { useTrades } from '@/store/TradeContext'
 import { useAuth } from '@/store/AuthContext'
@@ -9,7 +9,12 @@ import { RULES, ruleScore, type Trade } from '@/types'
 import { Section, Empty, Tag, Input, Select, Stat, StatRow } from '@/components/ui/Primitives'
 import { RulesBadge } from '@/components/trade/RulesChecklist'
 import { TradeDetail } from '@/components/trade/TradeDetail'
+import { QuickClose } from '@/components/trade/QuickClose'
 import type { ShellContext } from '@/components/layout/Shell'
+
+/** Kept next to the header row below — a stale colSpan silently breaks the
+ *  quick-close row's alignment with no error anywhere. */
+const TABLE_COLUMNS = 11
 
 type SortKey = 'date' | 'pair' | 'r' | 'pnl'
 type Filter = 'all' | 'open' | 'closed' | 'wins' | 'losses' | 'broke-rules' | 'no-rules'
@@ -38,6 +43,7 @@ export function Trades() {
     FILTERS.some((f) => f.value === urlFilter) ? (urlFilter as Filter) : 'all'
 
   const [selected, setSelected] = useState<Trade | null>(null)
+  const [closing, setClosing] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [filter, setFilterState] = useState<Filter>(initialFilter)
 
@@ -202,7 +208,7 @@ export function Trades() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="tbl-wrap">
             <table className="tbl">
               <thead>
                 <tr>
@@ -223,7 +229,8 @@ export function Trades() {
                 {filtered.map((t) => {
                   const score = ruleScore(t.rules)
                   return (
-                    <tr key={t.id} onClick={() => setSelected(t)} className="cursor-pointer">
+                    <Fragment key={t.id}>
+                    <tr onClick={() => setSelected(t)} className="cursor-pointer">
                       <td className="font-mono text-ink-400">{fmtDateTime(t.exitDate ?? t.tradeDate)}</td>
                       <td className="font-mono text-ink-50 font-medium">{t.ticker}</td>
                       <td className={t.direction === 'long' ? 'text-up' : 'text-down'}>
@@ -249,7 +256,22 @@ export function Trades() {
                       <td className={`num ${valueClass(t.pnl)}`}>{fmtMoney(t.pnl)}</td>
                       <td>
                         {t.status === 'open' ? (
-                          <Tag tone="azure">Open</Tag>
+                          // Stops the row's own click handler, which would open
+                          // the modal this button exists to avoid.
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setClosing((c) => (c === t.id ? null : t.id))
+                            }}
+                            className={`btn-sm rounded transition-colors duration-90 ${
+                              closing === t.id
+                                ? 'bg-ink-700 text-ink-100'
+                                : 'bg-azure/15 text-azure-bright hover:bg-azure/25'
+                            }`}
+                            title="Close this position without opening the full detail"
+                          >
+                            {closing === t.id ? 'Cancel' : 'Close'}
+                          </button>
                         ) : (
                           <Tag tone={t.outcome === 'win' ? 'up' : t.outcome === 'loss' ? 'down' : 'neutral'}>
                             {t.outcome ?? '—'}
@@ -257,6 +279,16 @@ export function Trades() {
                         )}
                       </td>
                     </tr>
+
+                    {closing === t.id && (
+                      <QuickClose
+                        trade={t}
+                        colSpan={TABLE_COLUMNS}
+                        onDone={() => setClosing(null)}
+                        onOpenFull={() => { setClosing(null); setSelected(t) }}
+                      />
+                    )}
+                    </Fragment>
                   )
                 })}
               </tbody>

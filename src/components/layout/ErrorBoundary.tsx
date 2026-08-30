@@ -17,7 +17,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[trackr] render error:', error, info.componentStack)
+    console.error('[fills] render error:', error, info.componentStack)
   }
 
   render() {

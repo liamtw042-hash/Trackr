@@ -75,6 +75,7 @@ export function tradeFromDoc(snap: QueryDocumentSnapshot<DocumentData>): Trade {
     positionSize: n(d.positionSize),
     riskAmount: n(d.riskAmount),
     riskPercent: n(d.riskPercent),
+    conversionRate: n(d.conversionRate),
 
     tradeDate: s(d.tradeDate, new Date().toISOString()),
     exitDate: s(d.exitDate) || null,

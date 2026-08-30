@@ -4,10 +4,11 @@ import { useAuth } from '@/store/AuthContext'
 import { useTrades } from '@/store/TradeContext'
 import { findPatterns, aiConfigured, MIN_TRADES_FOR_PATTERNS, type PatternReport } from '@/lib/ai'
 import { groupPerformance, fmtR, fmtMoney, fmtPct, round, valueClass } from '@/lib/calc'
-import { afterLoss, holdTimes, fmtDuration } from '@/lib/edge'
+import { afterLoss, holdTimes, fmtDuration, estimateEdge } from '@/lib/edge'
 import { RULES, MISTAKE_LABELS, EMOTIONS, ruleScore } from '@/types'
 import { EquityChart, RDistribution, PerformanceBars } from '@/components/charts/Charts'
 import { Section, Stat, StatRow, Spinner, Empty, Tag } from '@/components/ui/Primitives'
+import { Compare } from '@/components/analysis/Compare'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -19,6 +20,7 @@ export function Analysis() {
   const [metric, setMetric] = useState<'avgR' | 'pnl'>('avgR')
 
   const closed = useMemo(() => trades.filter((t) => t.status === 'closed'), [trades])
+  const edge = useMemo(() => estimateEdge(trades), [trades])
   const tilt = useMemo(() => afterLoss(trades), [trades])
   const hold = useMemo(() => holdTimes(trades), [trades])
 
@@ -110,12 +112,19 @@ export function Analysis() {
 
       <StatRow cols={6}>
         <Stat label="Closed" value={stats.closed} sub={`${stats.open} open`} />
-        <Stat label="Expectancy" value={fmtR(stats.expectancy)} sub="per trade" tone={stats.expectancy >= 0 ? 'up' : 'down'} />
+        <Stat
+          label="Expectancy"
+          value={fmtR(stats.expectancy)}
+          sub={edge.tooFew ? 'per trade' : `95% ${fmtR(edge.lower)} to ${fmtR(edge.upper)}`}
+          tone={stats.expectancy >= 0 ? 'up' : 'down'}
+        />
         <Stat label="Profit factor" value={stats.profitFactor?.toFixed(2) ?? '—'} tone={stats.profitFactor !== null && stats.profitFactor >= 1 ? 'up' : 'down'} />
         <Stat label="Avg win" value={fmtMoney(stats.avgWin, 0)} sub={`avg loss ${fmtMoney(-stats.avgLoss, 0)}`} tone="up" />
         <Stat label="Gross" value={fmtMoney(stats.grossProfit, 0)} sub={`lost ${fmtMoney(stats.grossLoss, 0)}`} tone="up" />
         <Stat label="Max DD" value={fmtMoney(-stats.maxDrawdown, 0)} sub={fmtPct(stats.maxDrawdownPct, 0)} tone="down" />
       </StatRow>
+
+      <Compare trades={trades} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-10 gap-y-section">
         <Section className="lg:col-span-2" title="Equity">

@@ -1,9 +1,12 @@
-# Trackr
+# Fills
 
 A trading journal and portfolio tracker built for one person. Forex CFDs traded
 discretionarily on CMC Markets, plus long-term ASX holdings, in one place.
 
 Not a product. No sign-up flow, no marketing pages, no multi-tenancy.
+
+*(Previously called Trackr. Backup files written under the old name still
+restore — `inspectBackup` accepts both format tags and always will.)*
 
 ---
 
@@ -47,6 +50,17 @@ rule is worth in average R.
   answer.
 - **Ask your journal** — natural-language questions answered from your own
   trades, always with the sample size stated.
+
+**Compare** — pick two groups on Analysis (by setup, direction or session) and
+get the *difference* between them with a confidence interval, not two averages
+side by side. Two averages invite the wrong conclusion; the difference has its
+own, narrower distribution, and it is the one that answers "is the thing I
+changed actually better?". If the interval clears zero the gap is real; if it
+straddles zero the page says so in those words.
+
+**Closing out** — an open position closes from the trades table itself: exit
+price in, P&L estimated, Enter. The full detail view is one click away for a
+trade that deserves rules, notes and screenshots.
 
 **ASX portfolio** — a secondary panel. Holdings entered by hand (NAB Trade has
 no API), priced automatically. See the honesty note below.
@@ -103,6 +117,55 @@ to exercise that path locally.
 
 ---
 
+## Currency, and why risk is editable
+
+Every R-multiple in this app is `pnl ÷ riskAmount`, which makes `riskAmount` the
+number everything else leans on. It used to be derived as `|entry − stop| ×
+units`, and that product is denominated in the pair's **quote** currency:
+
+| Pair | Quote | Derived risk |
+| --- | --- | --- |
+| EUR/AUD | AUD | correct as-is |
+| EUR/USD | USD | out by the USD→AUD rate, ~1.5× |
+| NZD/JPY | JPY | out by the JPY→AUD rate, ~112× |
+
+A 112× error in the denominator does not look like an error. It looks like
+−0.01R, which is a number, and it drags expectancy, every rule comparison and
+the whole R distribution toward zero without ever surfacing as a fault.
+
+`src/lib/fx.ts` resolves the rate from what the trade already knows, in
+descending order of trust, and reports which branch it used:
+
+1. **A rate stored on the trade.** CMC puts one on the closing row of its
+   export, and the CSV importer reads it. Exact.
+2. **Quote currency is AUD.** No conversion applies. Exact.
+3. **Back-solved from the broker's P&L.** The price move × units is the result
+   in the quote currency and the broker's figure is the same result in AUD, so
+   their ratio is the rate that was applied. Lands within about a percent —
+   it absorbs commission — and is labelled approximate wherever it is shown.
+4. **AUD is the base** (AUD/USD, AUD/JPY): the price *is* the AUD→quote rate,
+   so its reciprocal converts back. Uses the trade's own price, not the rate at
+   settlement, so also approximate.
+5. **Otherwise: nothing.** No guess, no default. The UI asks.
+
+There is deliberately no FX feed. A live rate would make a trade closed in June
+depend on today's market, which is worse than no rate at all.
+
+Consequences worth knowing:
+
+- **Risk $ is editable** on every trade, open ones included, and R recomputes
+  live as you type it. A stored risk is only ever changed by editing it or by
+  importing a file that carries one.
+- **The trade detail flags a stale figure** — when the stored risk still equals
+  stop × units *and* is more than 5× away from the money that actually moved,
+  the input goes red and names the currency it is actually in.
+- **Data → Risk currency** finds every affected trade at once, shows what each
+  becomes and what it does to expectancy, and repairs them on one confirm. It
+  writes risk, risk % and R only; P&L and your balance are untouched.
+- **The log form withholds the unit-size suggestion** when it cannot determine
+  a rate, and asks for one instead. A wrong size suggestion is worse than none,
+  because it looks authoritative.
+
 ## Things you should know
 
 **Your Anthropic API key ships to the browser.** There's no backend, so the key
@@ -142,18 +205,6 @@ CMC (via CSV or typed in) wherever possible, and price-derived P&L is only ever
 shown as an estimate. **R-multiple is the primary metric throughout** — `pnl ÷
 risk` is exact regardless of quote currency, which is why the dashboard leads
 with expectancy in R rather than dollars.
-
-**Risk per trade has the same currency problem, and it is editable because of
-it.** Risk is derived as stop distance × position size, which lands in the
-*quote* currency. That is the AUD risk only for a pair quoted in AUD
-(EUR/AUD, GBP/AUD). On a JPY cross it comes out roughly 112× too big, and
-since R is `pnl ÷ risk`, the R-multiple collapses to near zero and quietly
-corrupts expectancy, the rule comparisons and the R distribution together.
-The app cannot fix this on its own without an FX rate it does not have, so
-**Risk $ is an editable field on every trade** (open it from the trades table)
-and the figure is flagged in red when it looks like an unconverted quote-currency
-amount. A CSV import can also carry a **Risk $** column, already in AUD, which
-overrides the estimate.
 
 **Sample sizes are shown everywhere, and small ones are visibly dimmed.** A
 100% win rate on three trades is noise, and the UI is built to stop that
@@ -237,13 +288,22 @@ change it — pricing at [anthropic.com/pricing](https://www.anthropic.com/prici
 
 ```
 src/
-  lib/          calc, ai, csv, images, firebase, migration, serialize
+  lib/          calc, fx, edge, ai, csv, images, firebase, migration, serialize
   store/        Auth / Trade / Holdings contexts
-  components/   ui, trade, charts, layout, ai
+  components/   ui, trade, charts, analysis, data, layout, ai
   pages/        Desk, Trades, Analysis, Portfolio, Data, Settings, SignIn
   types/        the whole data model
 api/quotes.ts   ASX price proxy (Vercel function)
 ```
+
+`edge.ts` holds the only confidence-interval implementation in the codebase, on
+purpose. It is a seeded percentile bootstrap rather than a t-interval, because
+an R distribution built on a trailed stop is a cluster of −1R losses with a thin
+right tail, and a t-interval on that is wrong in exactly the direction that
+flatters the trader. The seed is fixed so the figure does not drift between
+renders. Everything that reports uncertainty — the Desk headline, the Analysis
+expectancy, the A/B comparison — goes through it, so two screens can never
+disagree about the same trades.
 
 ```bash
 npm run typecheck   # tsc, no emit

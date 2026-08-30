@@ -87,7 +87,7 @@ export function Shell() {
   const openLogTrade = useCallback(() => setLogOpen(true), [])
   const openCsvImport = useCallback(() => setCsvOpen(true), [])
 
-  // ── Friction reducers ────────────────────────────────────────────────
+  // ── Friction reducers ───────────────────────────────────────────────
   // Two ways into the log form without reaching for the mouse. Logging is the
   // thing that decides whether this app gets used at all, so the path from
   // "trade filled on CMC" to "logged" is kept as short as it can be.
@@ -140,7 +140,7 @@ export function Shell() {
   return (
     <div className="min-h-screen flex flex-col">
 
-      {/* ── Top bar ───────────────────────────────────────────────────────
+      {/* ── Top bar ────────────────────────────────────────────────────
           A floating plane rather than a ruled strip: translucent ground, a
           blur, and a single highlight along its lower edge so content scrolls
           *under* it instead of colliding with a line. */}
@@ -151,7 +151,7 @@ export function Shell() {
       >
         <div className="flex items-center gap-2 pl-1 pr-4">
           <Mark />
-          <span className="font-semibold text-ink-50 tracking-tighter text-[15px]">Trackr</span>
+          <span className="font-semibold text-ink-50 tracking-tighter text-[15px]">Fills</span>
         </div>
 
         {/* Nav items are pills. The active one is a raised plane — depth, not a

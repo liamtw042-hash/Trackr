@@ -3,6 +3,7 @@ import {
 } from 'firebase/firestore'
 import { db, COL } from './firebase'
 import { tradeFromDoc, holdingFromDoc } from './serialize'
+import { BACKUP_FORMAT } from './backupFormat'
 import type { BackupFile } from './backupFormat'
 import type { UserProfile } from '@/types'
 
@@ -37,7 +38,7 @@ export async function collectBackup(
   const holdings = holdingSnap.docs.map(holdingFromDoc)
 
   return {
-    format: 'trackr-backup',
+    format: BACKUP_FORMAT,
     version: 2,
     exportedAt: new Date().toISOString(),
     counts: { trades: trades.length, holdings: holdings.length },
@@ -47,7 +48,7 @@ export async function collectBackup(
   }
 }
 
-// ─── Reset ───────────────────────────────────────────────────────────────────
+// ─── Reset ──────────────────────────────────────────────────────────────────────
 
 export interface ResetPlan {
   deleteTrades: boolean
@@ -116,7 +117,7 @@ export async function applyReset(
   return result
 }
 
-// ─── Restore ─────────────────────────────────────────────────────────────────
+// ─── Restore ───────────────────────────────────────────────────────────────────
 
 /**
  * Write a backup's trades back into Firestore under the current user.

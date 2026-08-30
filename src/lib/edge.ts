@@ -110,7 +110,79 @@ export function estimateEdge(trades: Trade[]): EdgeEstimate {
   }
 }
 
-// ─── Rule cost ───────────────────────────────────────────────────────────────
+// ─── Two-group comparison ─────────────────────────────────────────────────────────
+
+export interface GroupComparison {
+  aN: number
+  bN: number
+  aMean: number
+  bMean: number
+  /** mean(a) − mean(b). */
+  difference: number
+  lower: number
+  upper: number
+  /** True when the whole interval sits on one side of zero. */
+  conclusive: boolean
+  /** Below this, no interval is produced at all. */
+  tooFew: boolean
+}
+
+const MIN_PER_GROUP = 5
+
+/**
+ * Is group A actually better than group B, or is that just the sample?
+ *
+ * Bootstraps the DIFFERENCE of the two means rather than comparing two separate
+ * intervals. Two overlapping intervals are routinely read as "no difference"
+ * when there is one — the difference has its own, narrower distribution, and it
+ * is the one that answers the question being asked.
+ *
+ * Same percentile bootstrap as estimateEdge, and for the same reason: an R
+ * distribution built on a trailed stop is a cluster of −1R losses with a thin
+ * right tail, and a t-interval on that is wrong in the direction that flatters
+ * the trader. Same fixed seed, so the figure does not shift between renders.
+ */
+export function compareGroups(aRs: number[], bRs: number[]): GroupComparison {
+  const aN = aRs.length
+  const bN = bRs.length
+  const aMean = aN ? aRs.reduce((s, r) => s + r, 0) / aN : 0
+  const bMean = bN ? bRs.reduce((s, r) => s + r, 0) / bN : 0
+
+  const base = {
+    aN, bN,
+    aMean: round(aMean, 2),
+    bMean: round(bMean, 2),
+    difference: round(aMean - bMean, 2),
+  }
+
+  if (aN < MIN_PER_GROUP || bN < MIN_PER_GROUP) {
+    return { ...base, lower: 0, upper: 0, conclusive: false, tooFew: true }
+  }
+
+  const rand = rng(0x5eed)
+  const diffs = new Float64Array(BOOTSTRAP_SAMPLES)
+  for (let b = 0; b < BOOTSTRAP_SAMPLES; b++) {
+    let sa = 0
+    for (let i = 0; i < aN; i++) sa += aRs[Math.floor(rand() * aN)]
+    let sb = 0
+    for (let i = 0; i < bN; i++) sb += bRs[Math.floor(rand() * bN)]
+    diffs[b] = sa / aN - sb / bN
+  }
+  diffs.sort()
+
+  const lower = diffs[Math.floor(BOOTSTRAP_SAMPLES * 0.025)]
+  const upper = diffs[Math.floor(BOOTSTRAP_SAMPLES * 0.975)]
+
+  return {
+    ...base,
+    lower: round(lower, 2),
+    upper: round(upper, 2),
+    conclusive: lower > 0 || upper < 0,
+    tooFew: false,
+  }
+}
+
+// ─── Rule cost ──────────────────────────────────────────────────────────────────
 
 export interface RuleCost {
   rule: (typeof RULES)[number]
@@ -175,7 +247,7 @@ export function ruleCosts(trades: Trade[]): RuleCost[] {
   })
 }
 
-// ─── Journal completeness ────────────────────────────────────────────────────
+// ─── Journal completeness ────────────────────────────────────────────────────────
 
 export interface Completeness {
   closed: number
@@ -208,7 +280,7 @@ export function completeness(trades: Trade[]): Completeness {
   }
 }
 
-// ─── Hold time ───────────────────────────────────────────────────────────────
+// ─── Hold time ──────────────────────────────────────────────────────────────────
 
 export interface HoldTime {
   winnersMedianHours: number | null
@@ -282,7 +354,7 @@ export function fmtDuration(hours: number | null): string {
   return h ? `${d}d ${h}h` : `${d}d`
 }
 
-// ─── Streak context ──────────────────────────────────────────────────────────
+// ─── Streak context ────────────────────────────────────────────────────────────
 
 /**
  * Performance immediately after a loss versus overall — the cheapest available

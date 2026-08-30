@@ -52,7 +52,7 @@ async function fetchOne(code: string): Promise<QuoteResult> {
     const res = await fetch(`${YAHOO}/${encodeURIComponent(code)}.AX?interval=1d&range=5d`, {
       headers: {
         // Yahoo returns 429 to requests without a browser-shaped User-Agent.
-        'User-Agent': 'Mozilla/5.0 (compatible; Trackr/2.0)',
+        'User-Agent': 'Mozilla/5.0 (compatible; Fills/2.0)',
         Accept: 'application/json',
       },
     })

@@ -10,8 +10,19 @@ import type { Holding, Trade, UserProfile } from '@/types'
 // CSV ends up loading the Firebase SDK.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * The app was called Trackr before it was called Fills. Backups written under
+ * the old name are still valid and must keep restoring — a rename is not a
+ * reason to strand a file the user already downloaded. New exports write
+ * 'fills-backup'; both are accepted on read, forever.
+ */
+export type BackupFormatTag = 'fills-backup' | 'trackr-backup'
+
+export const BACKUP_FORMAT: BackupFormatTag = 'fills-backup'
+const ACCEPTED_FORMATS: readonly string[] = ['fills-backup', 'trackr-backup']
+
 export interface BackupFile {
-  format: 'trackr-backup'
+  format: BackupFormatTag
   version: 2
   exportedAt: string
   counts: { trades: number; holdings: number }
@@ -20,7 +31,7 @@ export interface BackupFile {
   holdings: Holding[]
 }
 
-// ─── Serialisation ───────────────────────────────────────────────────────────
+// ─── Serialisation ────────────────────────────────────────────────────────────────
 
 function csvCell(v: unknown): string {
   if (v === null || v === undefined) return ''
@@ -47,6 +58,7 @@ const CSV_COLUMNS: { header: string; get: (t: Trade) => unknown }[] = [
   { header: 'units', get: (t) => t.positionSize },
   { header: 'risk_amount', get: (t) => t.riskAmount },
   { header: 'risk_percent', get: (t) => t.riskPercent },
+  { header: 'conversion_rate', get: (t) => t.conversionRate },
   { header: 'pnl', get: (t) => t.pnl },
   { header: 'r_multiple', get: (t) => t.rMultiple },
   { header: 'setup', get: (t) => t.setupType },
@@ -92,11 +104,11 @@ export function download(filename: string, content: string, mime: string): void 
 export function backupFilename(ext: 'json' | 'csv'): string {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `trackr-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.${ext}`
+  return `fills-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.${ext}`
 }
 
 
-// ─── Restore validation ──────────────────────────────────────────────────────
+// ─── Restore validation ───────────────────────────────────────────────────────────
 
 export interface RestorePreview {
   valid: boolean
@@ -116,7 +128,9 @@ export function inspectBackup(text: string): { preview: RestorePreview; backup: 
 
   try {
     const parsed = JSON.parse(text) as Partial<BackupFile>
-    if (parsed.format !== 'trackr-backup') return invalid('Not a Trackr backup file')
+    if (!parsed.format || !ACCEPTED_FORMATS.includes(parsed.format)) {
+      return invalid('Not a Fills backup file')
+    }
 
     const trades = Array.isArray(parsed.trades) ? parsed.trades : []
     const holdings = Array.isArray(parsed.holdings) ? parsed.holdings : []

@@ -7,6 +7,7 @@ import { fmtMoney, fmtDate } from '@/lib/calc'
 import { SCHEMA_VERSION } from '@/types'
 import { PageHeader, Stat, StatRow } from '@/components/ui/Primitives'
 import { DataManager } from '@/components/data/DataManager'
+import { RiskAudit } from '@/components/data/RiskAudit'
 import type { ShellContext } from '@/components/layout/Shell'
 
 /**
@@ -57,6 +58,8 @@ export function Data() {
           sub={oldest ? undefined : 'nothing logged'}
         />
       </StatRow>
+
+      <RiskAudit />
 
       <DataManager onImportCsv={openCsvImport} />
     </div>

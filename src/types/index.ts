@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Trackr data model
+// Fills data model
 //
 // Schema v2. v1 (the previous build) is migrated in place — see
 // src/services/migration.ts. Every v1 field is either kept under the same
@@ -8,7 +8,7 @@
 
 export const SCHEMA_VERSION = 2
 
-// ─── Rules ───────────────────────────────────────────────────────────────────
+// ─── Rules ──────────────────────────────────────────────────────────────────────
 // The five rules of the strategy. Fixed, not free text — the whole point is to
 // correlate adherence against outcome, which needs a stable set of keys.
 
@@ -96,7 +96,7 @@ export function ruleScore(rules: RuleState | undefined): {
   }
 }
 
-// ─── Trade ───────────────────────────────────────────────────────────────────
+// ─── Trade ──────────────────────────────────────────────────────────────────────
 
 export type Direction = 'long' | 'short'
 export type TradeStatus = 'open' | 'closed'
@@ -183,6 +183,13 @@ export interface Trade {
   positionSize: number | null
   riskAmount: number | null
   riskPercent: number | null
+  /**
+   * Quote currency → account currency (AUD), as applied by the broker when the
+   * trade settled. CMC puts this on the closing row of its export. Null means
+   * unknown, and `src/lib/fx.ts` falls back to inferring it — see the comment
+   * there for why a live FX feed would be worse than no feed at all.
+   */
+  conversionRate: number | null
 
   /** ISO datetime the position was opened. */
   tradeDate: string
@@ -228,7 +235,7 @@ export interface Trade {
 /** What a form hands to `addTrade` — no server-managed fields. */
 export type TradeDraft = Omit<Trade, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
 
-// ─── ASX holdings ────────────────────────────────────────────────────────────
+// ─── ASX holdings ──────────────────────────────────────────────────────────────
 
 export interface Holding {
   id: string
@@ -260,7 +267,7 @@ export interface Quote {
   error?: string
 }
 
-// ─── User profile ────────────────────────────────────────────────────────────
+// ─── User profile ──────────────────────────────────────────────────────────────
 
 export interface UserProfile {
   displayName: string
