@@ -15,6 +15,8 @@ import {
 } from '@/components/ui/Primitives'
 import { RulesBadge } from '@/components/trade/RulesChecklist'
 import { TradeDetail } from '@/components/trade/TradeDetail'
+import { Exposure } from '@/components/desk/Exposure'
+import { Discipline } from '@/components/desk/Discipline'
 import type { ShellContext } from '@/components/layout/Shell'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -174,7 +176,7 @@ export function Desk() {
         </Section>
       </section>
 
-      {/* ══ 2. OPEN — the only actionable thing ══════════════════════════════════ */}
+      {/* ══ 2. OPEN — the only actionable thing ═══════════════════════════════════ */}
       {open.length > 0 && (
         <Section
           title="Open"
@@ -223,6 +225,8 @@ export function Desk() {
           </table>
         </Section>
       )}
+
+      <Exposure trades={trades} />
 
       {/* ══ 3. WHAT THE JOURNAL CAN'T ANSWER YET ════════════════════════════════
           Only appears when there's a real gap. A closed trade with no rules
@@ -309,7 +313,9 @@ export function Desk() {
           )}
         </Section>
 
-        {/* Hold time — the diagnostic a trailing-stop strategy lives or dies on */}
+        {/* Hold time and discipline share the narrow column, so the rule-cost
+            panel keeps its two columns and nothing wraps onto an empty row. */}
+        <div className="space-y-section">
         <Section title="Hold time">
           {hold.winnersMedianHours === null && hold.losersMedianHours === null ? (
             <p className="text-xs text-ink-400 leading-relaxed">
@@ -353,9 +359,12 @@ export function Desk() {
             </div>
           )}
         </Section>
+
+        <Discipline trades={trades} />
+        </div>
       </div>
 
-      {/* ══ 5. RECENT + QUIET SIDEBAR ═════════════════════════════════════════ */}
+      {/* ══ 5. RECENT + QUIET SIDEBAR ════════════════════════════════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-10 gap-y-section">
         <Section
           title="Recent"

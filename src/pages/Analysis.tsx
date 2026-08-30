@@ -9,6 +9,8 @@ import { RULES, MISTAKE_LABELS, EMOTIONS, ruleScore } from '@/types'
 import { EquityChart, RDistribution, PerformanceBars } from '@/components/charts/Charts'
 import { Section, Stat, StatRow, Spinner, Empty, Tag } from '@/components/ui/Primitives'
 import { Compare } from '@/components/analysis/Compare'
+import { MonthGrid } from '@/components/analysis/MonthGrid'
+import { Underwater } from '@/components/charts/Underwater'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -137,6 +139,15 @@ export function Analysis() {
           <RDistribution trades={trades} height={220} />
         </Section>
       </div>
+
+      <Section
+        title="Underwater"
+        action={<span className="text-2xs text-ink-500">how far below the last high</span>}
+      >
+        <Underwater trades={trades} startingBalance={profile?.startingBalance ?? 0} height={160} />
+      </Section>
+
+      <MonthGrid trades={trades} />
 
       {/* ── Rule impact — the core question ── */}
       <Section

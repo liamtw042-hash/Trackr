@@ -9,6 +9,9 @@ import { LogTrade } from '@/components/trade/LogTrade'
 import { CsvImport } from '@/components/trade/CsvImport'
 import { AskDrawer } from '@/components/ai/AskDrawer'
 import { Kbd } from '@/components/ui/Primitives'
+import { CommandPalette } from '@/components/ui/CommandPalette'
+import { TradeDetail } from '@/components/trade/TradeDetail'
+import type { Trade } from '@/types'
 
 const NAV = [
   { to: '/', label: 'Desk', end: true },
@@ -76,6 +79,8 @@ export function Shell() {
   const [logOpen, setLogOpen] = useState(false)
   const [csvOpen, setCsvOpen] = useState(false)
   const [askOpen, setAskOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [paletteTrade, setPaletteTrade] = useState<Trade | null>(null)
   const [pastedTicket, setPastedTicket] = useState<File | null>(null)
   const location = useLocation()
 
@@ -87,7 +92,7 @@ export function Shell() {
   const openLogTrade = useCallback(() => setLogOpen(true), [])
   const openCsvImport = useCallback(() => setCsvOpen(true), [])
 
-  // ── Friction reducers ───────────────────────────────────────────────
+  // ── Friction reducers ──────────────────────────────────────────
   // Two ways into the log form without reaching for the mouse. Logging is the
   // thing that decides whether this app gets used at all, so the path from
   // "trade filled on CMC" to "logged" is kept as short as it can be.
@@ -96,6 +101,15 @@ export function Shell() {
   // swallows a keystroke meant for a text field.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Checked first, and deliberately not gated on `typing`: a command
+      // palette that stops working once the cursor is in a field is a palette
+      // you stop reaching for.
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault()
+        setPaletteOpen((v) => !v)
+        return
+      }
+
       const el = e.target as HTMLElement | null
       const typing =
         el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' ||
@@ -140,7 +154,7 @@ export function Shell() {
   return (
     <div className="min-h-screen flex flex-col">
 
-      {/* ── Top bar ────────────────────────────────────────────────────
+      {/* ── Top bar ──────────────────────────────────────────────
           A floating plane rather than a ruled strip: translucent ground, a
           blur, and a single highlight along its lower edge so content scrolls
           *under* it instead of colliding with a line. */}
@@ -193,6 +207,15 @@ export function Shell() {
           />
 
           <button
+            onClick={() => setPaletteOpen(true)}
+            className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded text-xs text-ink-400
+                       hover:text-ink-50 hover:bg-ink-900 transition-colors duration-90"
+            title="Jump to anything  ( ⌘K )"
+          >
+            Jump <Kbd>⌘K</Kbd>
+          </button>
+
+          <button
             onClick={() => setAskOpen(true)}
             className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded text-xs text-ink-400
                        hover:text-ink-50 hover:bg-ink-900 transition-colors duration-90"
@@ -232,6 +255,17 @@ export function Shell() {
       >
         <Outlet context={{ openLogTrade, openCsvImport }} />
       </main>
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onLogTrade={openLogTrade}
+        onImportCsv={openCsvImport}
+        onOpenTrade={setPaletteTrade}
+      />
+      {/* The palette can open a trade from any page, so the detail modal it
+          needs lives here rather than on whichever page happens to be mounted. */}
+      <TradeDetail trade={paletteTrade} onClose={() => setPaletteTrade(null)} />
 
       <LogTrade open={logOpen} onClose={closeLog} initialTicket={pastedTicket} />
       <CsvImport open={csvOpen} onClose={() => setCsvOpen(false)} />

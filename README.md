@@ -62,6 +62,35 @@ straddles zero the page says so in those words.
 price in, P&L estimated, Enter. The full detail view is one click away for a
 trade that deserves rules, notes and screenshots.
 
+**⌘K** — jump to any page, any pair, or an action, from anywhere including
+inside a text field. Matching is subsequence, not substring, so `gj` finds
+GBP/JPY. Open positions sort to the top, because they are the only rows still
+actionable.
+
+**Currency exposure** (Desk) — a forex position is two currency bets: long
+GBP/JPY is long GBP and short JPY. So three separate-looking trades — long
+GBP/JPY, long EUR/JPY, long AUD/JPY — are *one* short-yen bet at triple size,
+and one yen headline closes all three together. No column in the trades table
+can show this, because the thing that matters is what the rows have in common.
+Opposing positions net off, so a real hedge reads as zero.
+
+**Underwater** (Analysis) — the equity curve from below: how far under the
+previous high water mark the account sat, at every point. An equity curve
+flatters, because every dip on it is one you already survived. This is the
+chart that decides whether a system is tradeable at a given size. Stepped, not
+smoothed — equity changes at a close, and interpolating draws a path the
+account never took.
+
+**By month** (Analysis) — months shaded by total R, with the empty ones drawn
+rather than skipped. A month with no trades is information; collapsing it would
+put two months eight weeks apart side by side as though they were consecutive.
+
+**Discipline** (Desk) — current run, longest runs, and trades since the last
+rule break. Streaks are not predictive and the copy says so; what a streak is
+good for is noticing you are in one, because that is when sizing slips. Trades
+since a rule break is the figure worth watching, since it is the only one on
+that page under direct control.
+
 **ASX portfolio** — a secondary panel. Holdings entered by hand (NAB Trade has
 no API), priced automatically. See the honesty note below.
 
@@ -288,9 +317,9 @@ change it — pricing at [anthropic.com/pricing](https://www.anthropic.com/prici
 
 ```
 src/
-  lib/          calc, fx, edge, ai, csv, images, firebase, migration, serialize
+  lib/          calc, fx, edge, insight, ai, csv, images, firebase, migration, serialize
   store/        Auth / Trade / Holdings contexts
-  components/   ui, trade, charts, analysis, data, layout, ai
+  components/   ui, trade, charts, analysis, desk, data, layout, ai
   pages/        Desk, Trades, Analysis, Portfolio, Data, Settings, SignIn
   types/        the whole data model
 api/quotes.ts   ASX price proxy (Vercel function)
