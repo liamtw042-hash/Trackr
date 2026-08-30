@@ -1,0 +1,513 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import toast from 'react-hot-toast'
+import { useAuth } from '@/store/AuthContext'
+import { useTrades } from '@/store/TradeContext'
+import { readChart, reviewTrade, aiConfigured } from '@/lib/ai'
+import { uploadImage } from '@/lib/images'
+import {
+  estimatePnl, outcomeFromPnl, rMultiple, num, fmtMoney, fmtR, fmtDateTime,
+  fmtPrice, valueClass, stopDistance,
+} from '@/lib/calc'
+import { RULES, MISTAKE_LABELS, EMOTIONS, type ChartRead, type RuleState, type Trade } from '@/types'
+import {
+  Modal, Field, Input, Select, Textarea, Segmented, Spinner, Tag, Panel,
+} from '@/components/ui/Primitives'
+import { ImageDrop } from '@/components/ui/ImageDrop'
+import { RulesChecklist } from './RulesChecklist'
+import { MISTAKES } from '@/types'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Trade detail: the place a trade gets its context added after the fact.
+//
+// Logging captures the numbers in seconds; this is where the reasoning, the
+// charts, and the rules get filled in later — and where a still-open position
+// gets closed out.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function localFromIso(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().slice(0, 16)
+}
+
+function ChartReadPanel({ read, phase }: { read: ChartRead; phase: string }) {
+  return (
+    <div className="border border-ink-700 divide-y divide-ink-700">
+      <div className="px-2.5 py-1.5 bg-ink-850 flex items-center justify-between">
+        <span className="text-2xs uppercase tracking-label text-ink-400">{phase} chart — AI read</span>
+        <span className="text-2xs text-ink-500 font-mono">{fmtDateTime(read.readAt)}</span>
+      </div>
+
+      {([
+        ['Trend', read.trend],
+        ['Price context', read.priceContext],
+        ['Entry candle', read.entryCandle],
+        ['Notable', read.notable],
+      ] as const)
+        .filter(([, v]) => v)
+        .map(([label, v]) => (
+          <div key={label} className="px-2.5 py-2">
+            <div className="text-2xs uppercase tracking-label text-ink-500 mb-0.5">{label}</div>
+            <p className="text-xs text-ink-100 leading-relaxed">{v}</p>
+          </div>
+        ))}
+
+      {read.disagreements.length > 0 && (
+        <div className="px-2.5 py-2 bg-brass-wash">
+          <div className="text-2xs uppercase tracking-label text-brass-bright mb-1">
+            Disagrees with your rules
+          </div>
+          {read.disagreements.map((d, i) => (
+            <p key={i} className="text-xs text-ink-100 leading-relaxed">
+              <span className="text-brass-bright">
+                {RULES.find((r) => r.key === d.rule)?.label ?? d.rule}:
+              </span>{' '}
+              {d.note}
+            </p>
+          ))}
+        </div>
+      )}
+
+      <p className="px-2.5 py-2 text-2xs text-ink-500 leading-relaxed">
+        A second opinion from an image, not a verdict. It can't count zone touches
+        from a windowed chart or read EMAs that aren't plotted — where it says it
+        can't tell, it genuinely can't.
+      </p>
+    </div>
+  )
+}
+
+export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: () => void }) {
+  const { user, profile } = useAuth()
+  const { updateTrade, deleteTrade } = useTrades()
+
+  const [rules, setRules] = useState<RuleState>(() => trade?.rules ?? ({} as RuleState))
+  const [notes, setNotes] = useState('')
+  const [setupType, setSetupType] = useState('')
+  const [mistake, setMistake] = useState('')
+  const [emotion, setEmotion] = useState('3')
+  const [status, setStatus] = useState<'open' | 'closed'>('open')
+  const [exitPrice, setExitPrice] = useState('')
+  const [exitDate, setExitDate] = useState('')
+  const [pnl, setPnl] = useState('')
+  const [finalStop, setFinalStop] = useState('')
+  const [entryImage, setEntryImage] = useState<string | null>(null)
+  const [exitImage, setExitImage] = useState<string | null>(null)
+
+  const [saving, setSaving] = useState(false)
+  const [reading, setReading] = useState<'entry' | 'exit' | null>(null)
+  const [reviewing, setReviewing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // Reload local state whenever a different trade is opened.
+  useEffect(() => {
+    if (!trade) return
+    setRules(trade.rules)
+    setNotes(trade.notes)
+    setSetupType(trade.setupType)
+    setMistake(trade.mistake)
+    setEmotion(trade.emotion !== null ? String(trade.emotion) : '3')
+    setStatus(trade.status)
+    setExitPrice(trade.exitPrice !== null ? String(trade.exitPrice) : '')
+    setExitDate(localFromIso(trade.exitDate))
+    setPnl(trade.pnl !== null ? String(trade.pnl) : '')
+    setFinalStop(trade.finalStopLoss !== null ? String(trade.finalStopLoss) : '')
+    setEntryImage(null)
+    setExitImage(null)
+    setConfirmDelete(false)
+  }, [trade?.id])
+
+  const derived = useMemo(() => {
+    if (!trade) return null
+    const typed = num(pnl)
+    const estimated = estimatePnl({
+      direction: trade.direction,
+      entryPrice: trade.entryPrice,
+      exitPrice: num(exitPrice),
+      positionSize: trade.positionSize,
+    })
+    const finalPnl = typed ?? estimated
+    return {
+      estimated,
+      pnl: finalPnl,
+      r: rMultiple(finalPnl, trade.riskAmount),
+      outcome: outcomeFromPnl(finalPnl),
+      oneR: stopDistance({
+        direction: trade.direction,
+        entryPrice: trade.entryPrice,
+        stopLoss: trade.stopLoss,
+      }),
+    }
+  }, [trade, pnl, exitPrice])
+
+  const save = useCallback(async () => {
+    if (!trade || !user) return
+    setSaving(true)
+    try {
+      const [entryUrl, exitUrl] = await Promise.all([
+        entryImage ? uploadImage(user.uid, 'entry', entryImage) : Promise.resolve(null),
+        exitImage ? uploadImage(user.uid, 'exit', exitImage) : Promise.resolve(null),
+      ])
+
+      const isClosed = status === 'closed'
+      const finalPnl = isClosed ? (derived?.pnl ?? null) : null
+
+      await updateTrade(trade.id, {
+        rules,
+        notes: notes.trim(),
+        setupType: setupType.trim(),
+        mistake,
+        emotion: num(emotion),
+        status,
+        outcome: isClosed ? outcomeFromPnl(finalPnl) : null,
+        exitPrice: isClosed ? num(exitPrice) : null,
+        exitDate: isClosed ? (exitDate || new Date().toISOString()) : null,
+        pnl: finalPnl,
+        rMultiple: isClosed ? rMultiple(finalPnl, trade.riskAmount) : null,
+        finalStopLoss: num(finalStop),
+        ...(entryUrl ? { entryScreenshotUrl: entryUrl } : {}),
+        ...(exitUrl ? { exitScreenshotUrl: exitUrl } : {}),
+      })
+
+      toast.success('Saved')
+      onClose()
+    } catch (err) {
+      console.error(err)
+      toast.error('Could not save')
+    } finally {
+      setSaving(false)
+    }
+  }, [
+    trade, user, rules, notes, setupType, mistake, emotion, status, exitPrice,
+    exitDate, finalStop, derived, entryImage, exitImage, updateTrade, onClose,
+  ])
+
+  const runChartRead = async (phase: 'entry' | 'exit') => {
+    if (!trade) return
+    const url = phase === 'entry'
+      ? (entryImage ?? trade.entryScreenshotUrl)
+      : (exitImage ?? trade.exitScreenshotUrl)
+    if (!url) {
+      toast.error(`Add an ${phase} chart first`)
+      return
+    }
+
+    setReading(phase)
+    try {
+      const read = await readChart(url, {
+        rules, direction: trade.direction, ticker: trade.ticker, phase, profile,
+      })
+      await updateTrade(trade.id, phase === 'entry' ? { entryChartRead: read } : { exitChartRead: read })
+      toast.success(
+        read.disagreements.length
+          ? `Read complete — ${read.disagreements.length} disagreement${read.disagreements.length === 1 ? '' : 's'}`
+          : 'Read complete — nothing contradicts your rules'
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Chart read failed')
+    } finally {
+      setReading(null)
+    }
+  }
+
+  const runReview = async () => {
+    if (!trade) return
+    if (trade.status !== 'closed') {
+      toast.error('Close the trade first')
+      return
+    }
+    setReviewing(true)
+    try {
+      const review = await reviewTrade(trade, profile)
+      await updateTrade(trade.id, { review })
+      toast.success('Review complete')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Review failed')
+    } finally {
+      setReviewing(false)
+    }
+  }
+
+  const remove = async () => {
+    if (!trade) return
+    try {
+      await deleteTrade(trade.id)
+      toast.success('Trade deleted')
+      onClose()
+    } catch {
+      toast.error('Could not delete')
+    }
+  }
+
+  if (!trade) return null
+
+  return (
+    <Modal
+      open={!!trade}
+      onClose={onClose}
+      width="max-w-5xl"
+      title={`${trade.ticker} ${trade.direction === 'long' ? 'LONG' : 'SHORT'}`}
+      subtitle={`${fmtDateTime(trade.tradeDate)}${trade.exitDate ? ` → ${fmtDateTime(trade.exitDate)}` : ' · still open'} · logged from ${trade.source}`}
+      footer={
+        <>
+          {confirmDelete ? (
+            <div className="mr-auto flex items-center gap-2">
+              <span className="text-2xs text-down">Delete permanently?</span>
+              <button onClick={() => void remove()} className="btn-danger btn-sm">Delete</button>
+              <button onClick={() => setConfirmDelete(false)} className="btn-ghost btn-sm">Keep</button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDelete(true)} className="btn-ghost btn-sm mr-auto text-ink-500">
+              Delete
+            </button>
+          )}
+          <button onClick={onClose} className="btn-ghost">Close</button>
+          <button onClick={() => void save()} disabled={saving} className="btn-primary">
+            {saving ? <><Spinner /> Saving…</> : 'Save'}
+          </button>
+        </>
+      }
+    >
+      {/* ── Numbers strip ── */}
+      <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-ink-700 border-b border-ink-700 bg-ink-850">
+        {([
+          ['Entry', fmtPrice(trade.entryPrice, trade.ticker), 'neutral'],
+          ['Stop', fmtPrice(trade.stopLoss, trade.ticker), 'neutral'],
+          ['Exit', trade.exitPrice !== null ? fmtPrice(trade.exitPrice, trade.ticker) : '—', 'neutral'],
+          ['Units', trade.positionSize?.toLocaleString() ?? '—', 'neutral'],
+          ['P&L', fmtMoney(trade.pnl), trade.pnl === null ? 'neutral' : trade.pnl >= 0 ? 'up' : 'down'],
+          ['R', fmtR(trade.rMultiple), trade.rMultiple === null ? 'neutral' : trade.rMultiple >= 0 ? 'up' : 'down'],
+        ] as const).map(([label, value, tone]) => (
+          <div key={label} className="px-2.5 py-2">
+            <div className="text-2xs uppercase tracking-label text-ink-500">{label}</div>
+            <div
+              className={`font-mono text-xs mt-0.5 ${
+                tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : 'text-ink-50'
+              }`}
+            >
+              {value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-ink-700">
+
+        {/* ── Left: outcome + rules + notes ── */}
+        <div className="p-3 space-y-3">
+          <div>
+            <div className="label">Status</div>
+            <Segmented
+              value={status}
+              onChange={(v) => {
+                setStatus(v)
+                if (v === 'closed' && !exitDate) setExitDate(localFromIso(new Date().toISOString()))
+              }}
+              options={[
+                { value: 'open', label: 'Open' },
+                { value: 'closed', label: 'Closed' },
+              ]}
+            />
+          </div>
+
+          {status === 'closed' && (
+            <div className="space-y-2 animate-rise">
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Exit price">
+                  <Input
+                    mono type="number" step="any"
+                    value={exitPrice}
+                    onChange={(e) => setExitPrice(e.target.value)}
+                  />
+                </Field>
+                <Field label="Closed at">
+                  <Input
+                    type="datetime-local"
+                    value={exitDate}
+                    onChange={(e) => setExitDate(e.target.value)}
+                  />
+                </Field>
+                <Field
+                  label="P&L $"
+                  hint={derived?.estimated != null && num(pnl) === null ? `est. ${fmtMoney(derived.estimated)}` : 'From CMC'}
+                >
+                  <Input
+                    mono type="number" step="any"
+                    value={pnl}
+                    onChange={(e) => setPnl(e.target.value)}
+                    placeholder={derived?.estimated != null ? String(derived.estimated) : '0.00'}
+                  />
+                </Field>
+                <Field label="Stop ended at" hint={derived?.oneR ? `1R = ${derived.oneR.toPrecision(3)}` : 'If trailed'}>
+                  <Input
+                    mono type="number" step="any"
+                    value={finalStop}
+                    onChange={(e) => setFinalStop(e.target.value)}
+                  />
+                </Field>
+              </div>
+
+              {derived?.pnl != null && (
+                <div className={`flex items-center justify-between px-3 py-2 border ${
+                  derived.pnl >= 0 ? 'border-up/30 bg-up-wash' : 'border-down/30 bg-down-wash'
+                }`}>
+                  <span className="text-2xs uppercase tracking-label text-ink-300">Result</span>
+                  <div className="flex items-center gap-4 font-mono">
+                    <span className={valueClass(derived.pnl)}>{fmtMoney(derived.pnl)}</span>
+                    <span className={`text-sm ${valueClass(derived.r)}`}>{fmtR(derived.r)}</span>
+                    <Tag tone={derived.outcome === 'win' ? 'up' : derived.outcome === 'loss' ? 'down' : 'neutral'}>
+                      {derived.outcome ?? '—'}
+                    </Tag>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <RulesChecklist value={rules} onChange={setRules} />
+
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Setup">
+              <Input value={setupType} onChange={(e) => setSetupType(e.target.value)} placeholder="Daily zone retest" />
+            </Field>
+            <Field label="Mistake">
+              <Select value={mistake} onChange={(e) => setMistake(e.target.value)}>
+                <option value="">None</option>
+                {MISTAKES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </Select>
+            </Field>
+          </div>
+
+          <Field label="State at entry" hint={EMOTIONS.find((e) => String(e.value) === emotion)?.detail}>
+            <Segmented
+              value={emotion}
+              onChange={setEmotion}
+              options={EMOTIONS.map((e) => ({ value: String(e.value), label: e.label }))}
+            />
+          </Field>
+
+          <Field label="Notes">
+            <Textarea
+              rows={4}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="What made this zone valid? What did you get right or wrong?"
+            />
+          </Field>
+        </div>
+
+        {/* ── Right: charts + AI ── */}
+        <div className="p-3 space-y-3 bg-ink-950/40">
+          {(['entry', 'exit'] as const).map((phase) => {
+            const stored = phase === 'entry' ? trade.entryScreenshotUrl : trade.exitScreenshotUrl
+            const pending = phase === 'entry' ? entryImage : exitImage
+            const setPending = phase === 'entry' ? setEntryImage : setExitImage
+            const read = phase === 'entry' ? trade.entryChartRead : trade.exitChartRead
+
+            return (
+              <div key={phase} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="label mb-0 capitalize">{phase} chart</span>
+                  {(stored || pending) && aiConfigured() && (
+                    <button
+                      onClick={() => void runChartRead(phase)}
+                      disabled={reading !== null}
+                      className="btn-ghost btn-sm"
+                    >
+                      {reading === phase ? <><Spinner /> Reading…</> : read ? 'Re-read' : 'Read chart'}
+                    </button>
+                  )}
+                </div>
+
+                {pending ? (
+                  <ImageDrop value={pending} onChange={setPending} label={`${phase} chart`} compact />
+                ) : stored ? (
+                  <a href={stored} target="_blank" rel="noreferrer" className="block border border-ink-700">
+                    <img src={stored} alt={`${phase} chart`} className="w-full h-32 object-contain bg-ink-950" />
+                  </a>
+                ) : (
+                  <ImageDrop value={null} onChange={setPending} label={`Add ${phase} chart`} compact />
+                )}
+
+                {read && <ChartReadPanel read={read} phase={phase} />}
+              </div>
+            )
+          })}
+
+          {/* Post-trade review */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="label mb-0">Post-trade review</span>
+              {aiConfigured() && trade.status === 'closed' && (
+                <button onClick={() => void runReview()} disabled={reviewing} className="btn-ghost btn-sm">
+                  {reviewing ? <><Spinner /> Reviewing…</> : trade.review ? 'Re-review' : 'Review'}
+                </button>
+              )}
+            </div>
+
+            {trade.status !== 'closed' ? (
+              <p className="hint">Available once the trade is closed.</p>
+            ) : trade.review ? (
+              <div className="border border-ink-700 divide-y divide-ink-700">
+                {trade.review.didWell.length > 0 && (
+                  <div className="px-2.5 py-2">
+                    <div className="text-2xs uppercase tracking-label text-up mb-1">Did well</div>
+                    <ul className="space-y-1">
+                      {trade.review.didWell.map((s, i) => (
+                        <li key={i} className="text-xs text-ink-100 leading-relaxed flex gap-1.5">
+                          <span className="text-up shrink-0">+</span>{s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {trade.review.didBadly.length > 0 && (
+                  <div className="px-2.5 py-2">
+                    <div className="text-2xs uppercase tracking-label text-down mb-1">Did badly</div>
+                    <ul className="space-y-1">
+                      {trade.review.didBadly.map((s, i) => (
+                        <li key={i} className="text-xs text-ink-100 leading-relaxed flex gap-1.5">
+                          <span className="text-down shrink-0">−</span>{s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {trade.review.verdict && (
+                  <div className="px-2.5 py-2 bg-ink-850">
+                    <p className="text-xs text-ink-100 leading-relaxed">{trade.review.verdict}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="hint">
+                Judges process against your rules, not whether it made money.
+                A rule-following loss is a good trade.
+              </p>
+            )}
+          </div>
+
+          {trade.ticketScreenshotUrl && (
+            <div>
+              <div className="label">Original ticket</div>
+              <a href={trade.ticketScreenshotUrl} target="_blank" rel="noreferrer" className="block border border-ink-700">
+                <img src={trade.ticketScreenshotUrl} alt="Trade ticket" className="w-full h-24 object-contain bg-ink-950" />
+              </a>
+            </div>
+          )}
+
+          {trade.mistake && (
+            <div className="border border-down/30 bg-down-wash px-2.5 py-2">
+              <span className="text-2xs uppercase tracking-label text-down">Flagged mistake</span>
+              <p className="text-xs text-ink-100 mt-0.5">{MISTAKE_LABELS[trade.mistake] ?? trade.mistake}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+export { Panel }
