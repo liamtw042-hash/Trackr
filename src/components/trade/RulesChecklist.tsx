@@ -35,7 +35,7 @@ export function RulesChecklist({
               for (const r of RULES) next[r.key] = allYes ? null : true
               onChange(next)
             }}
-            className="text-2xs text-ink-400 hover:text-brass-bright transition-colors"
+            className="text-2xs text-ink-400 hover:text-azure-bright transition-colors"
           >
             {RULES.every((r) => value[r.key] === true) ? 'Clear all' : 'All followed'}
           </button>
@@ -49,13 +49,13 @@ export function RulesChecklist({
         </div>
       </div>
 
-      <div className="border border-ink-700 divide-y divide-ink-700">
+      <div className="surface divide-y divide-ink-800 overflow-hidden">
         {RULES.map((rule) => {
           const state = value[rule.key]
           return (
             <div
               key={rule.key}
-              className={`flex items-center gap-3 px-2.5 py-2 transition-colors
+              className={`flex items-center gap-3 px-3 py-2.5 transition-colors
                 ${state === false ? 'bg-down-wash' : state === true ? 'bg-up-wash' : ''}`}
             >
               <div className="min-w-0 flex-1">
@@ -63,14 +63,14 @@ export function RulesChecklist({
                 <div className="text-2xs text-ink-400 leading-snug mt-0.5">{rule.detail}</div>
               </div>
 
-              <div className="flex border border-ink-600 divide-x divide-ink-600 shrink-0">
+              <div className="flex bg-ink-750 rounded p-0.5 gap-0.5 shrink-0">
                 <button
                   type="button"
                   disabled={disabled}
                   onClick={() => set(rule.key, true)}
                   aria-pressed={state === true}
                   aria-label={`${rule.label}: followed`}
-                  className={`px-2 py-1 text-2xs font-medium transition-colors
+                  className={`px-2.5 py-1 text-2xs font-medium rounded-sm transition-colors
                     ${state === true
                       ? 'bg-up/20 text-up'
                       : 'text-ink-500 hover:text-ink-200 hover:bg-ink-800'}`}
@@ -83,7 +83,7 @@ export function RulesChecklist({
                   onClick={() => set(rule.key, false)}
                   aria-pressed={state === false}
                   aria-label={`${rule.label}: broken`}
-                  className={`px-2 py-1 text-2xs font-medium transition-colors
+                  className={`px-2.5 py-1 text-2xs font-medium rounded-sm transition-colors
                     ${state === false
                       ? 'bg-down/20 text-down'
                       : 'text-ink-500 hover:text-ink-200 hover:bg-ink-800'}`}

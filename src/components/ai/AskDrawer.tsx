@@ -73,14 +73,14 @@ export function AskDrawer({ open, onClose }: { open: boolean; onClose: () => voi
       <div className="fixed inset-0 z-40 bg-ink-950/60 animate-fade-in" onClick={onClose} />
 
       <aside
-        className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-ink-900 border-l border-ink-700
+        className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-ink-900 border-l border-ink-800
                    flex flex-col animate-rise"
         role="dialog"
         aria-label="Ask your journal"
       >
-        <header className="panel-head shrink-0">
+        <header className="section-head shrink-0">
           <div>
-            <h2 className="panel-title">Ask your journal</h2>
+            <h2 className="sub-label">Ask your journal</h2>
             <p className="text-2xs text-ink-500 normal-case tracking-normal">
               {closed} closed trade{closed === 1 ? '' : 's'} in context
             </p>
@@ -106,7 +106,7 @@ export function AskDrawer({ open, onClose }: { open: boolean; onClose: () => voi
                     key={s}
                     onClick={() => void send(s)}
                     disabled={!closed}
-                    className="w-full text-left text-xs px-2.5 py-2 border border-ink-700
+                    className="w-full text-left text-xs px-2.5 py-2 surface
                                text-ink-200 hover:border-ink-600 hover:bg-ink-850 hover:text-ink-50
                                disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
@@ -123,7 +123,7 @@ export function AskDrawer({ open, onClose }: { open: boolean; onClose: () => voi
           {messages.map((m, i) => (
             <div key={i}>
               {m.role === 'user' ? (
-                <div className="text-xs text-brass-bright border-l-2 border-brass pl-2.5 py-0.5">
+                <div className="text-xs text-azure-bright border-l-2 border-azure pl-2.5 py-0.5">
                   {m.content}
                 </div>
               ) : (
@@ -141,16 +141,16 @@ export function AskDrawer({ open, onClose }: { open: boolean; onClose: () => voi
           )}
 
           {error && (
-            <div className="text-xs text-down border border-down/30 bg-down-wash px-2.5 py-2">
+            <div className="text-xs text-down bg-down-wash rounded-md bg-down-wash px-2.5 py-2">
               {error}
             </div>
           )}
         </div>
 
-        <footer className="p-3 border-t border-ink-700 shrink-0">
+        <footer className="p-3 border-t border-ink-800 shrink-0">
           {!aiConfigured() ? (
             <p className="hint">
-              Needs <code className="text-brass-bright">VITE_ANTHROPIC_API_KEY</code> in your .env.
+              Needs <code className="text-azure-bright">VITE_ANTHROPIC_API_KEY</code> in your .env.
             </p>
           ) : (
             <div className="flex gap-2">

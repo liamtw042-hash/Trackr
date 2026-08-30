@@ -8,7 +8,8 @@ import { aiConfigured } from '@/lib/ai'
 import { cloudinaryConfigured } from '@/lib/images'
 import { fmtMoney, num } from '@/lib/calc'
 import { SCHEMA_VERSION } from '@/types'
-import { Panel, Field, Input, Textarea, Spinner, Tag } from '@/components/ui/Primitives'
+import { Section, Field, Input, Textarea, Spinner, Tag } from '@/components/ui/Primitives'
+import { DataManager } from '@/components/data/DataManager'
 
 export function Settings() {
   const { user, profile, saveProfile } = useAuth()
@@ -98,9 +99,9 @@ export function Settings() {
   const onOldSchema = trades.filter((t) => t.schemaVersion < SCHEMA_VERSION).length
 
   return (
-    <div className="max-w-3xl space-y-3">
+    <div className="max-w-3xl space-y-section">
 
-      <Panel title="Account">
+      <Section title="Account">
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <Field label="Name">
@@ -126,7 +127,7 @@ export function Settings() {
           {num(risk) !== null && num(balance) !== null && (
             <p className="hint">
               At {risk}% of {fmtMoney(num(balance))}, one R is{' '}
-              <span className="text-brass-bright font-mono">
+              <span className="text-azure-bright font-mono">
                 {fmtMoney(((num(balance) ?? 0) * (num(risk) ?? 0)) / 100)}
               </span>
               .
@@ -137,9 +138,9 @@ export function Settings() {
             {saving ? <><Spinner /> Saving…</> : 'Save'}
           </button>
         </div>
-      </Panel>
+      </Section>
 
-      <Panel title="Strategy notes">
+      <Section title="Strategy notes">
         <Field
           label="Extra context for the AI"
           hint="Your core rules are already built in. Add anything specific — pairs you avoid, sessions you trade, patterns you're working on."
@@ -154,11 +155,11 @@ export function Settings() {
         <button onClick={() => void save()} disabled={saving} className="btn-primary mt-2">
           {saving ? <><Spinner /> Saving…</> : 'Save'}
         </button>
-      </Panel>
+      </Section>
 
       {/* ── Migration ── */}
       {(migrationNeeded || onOldSchema > 0 || migrationResult) && (
-        <Panel title="Data migration">
+        <Section title="Data migration">
           <div className="space-y-3">
             <p className="text-xs text-ink-200 leading-relaxed">
               {onOldSchema > 0 || migrationNeeded
@@ -180,7 +181,7 @@ export function Settings() {
             )}
 
             {migrationResult && (
-              <div className="border border-ink-700 divide-y divide-ink-700 text-2xs font-mono">
+              <div className="surface divide-y divide-ink-800 text-2xs font-mono">
                 {([
                   ['Scanned', migrationResult.scanned],
                   ['Migrated', migrationResult.migrated],
@@ -199,11 +200,11 @@ export function Settings() {
               </div>
             )}
           </div>
-        </Panel>
+        </Section>
       )}
 
       {/* ── Maintenance ── */}
-      <Panel title="Maintenance">
+      <Section title="Maintenance">
         <div className="space-y-2">
           <p className="text-xs text-ink-200 leading-relaxed">
             The balance updates automatically as trades close. If it has drifted out of
@@ -214,10 +215,12 @@ export function Settings() {
             {repairing ? <><Spinner /> Recomputing…</> : 'Recompute balance'}
           </button>
         </div>
-      </Panel>
+      </Section>
+
+      <DataManager />
 
       {/* ── Config status ── */}
-      <Panel title="Configuration">
+      <Section title="Configuration">
         <div className="divide-y divide-ink-800">
           {([
             ['Firebase', Boolean(import.meta.env.VITE_FIREBASE_PROJECT_ID), 'VITE_FIREBASE_* — console.firebase.google.com'],
@@ -237,14 +240,14 @@ export function Settings() {
           Without Anthropic, screenshot reading and all AI features are off — everything
           else works. Without Cloudinary, trades save but screenshots aren't kept.
         </p>
-      </Panel>
+      </Section>
 
-      <Panel title="Signed in as">
+      <Section title="Signed in as">
         <p className="font-mono text-2xs text-ink-300">{user?.email}</p>
         <p className="hint mt-1">
           {trades.length} trade{trades.length === 1 ? '' : 's'} · schema v{SCHEMA_VERSION}
         </p>
-      </Panel>
+      </Section>
     </div>
   )
 }

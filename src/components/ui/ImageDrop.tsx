@@ -60,7 +60,7 @@ export function ImageDrop({
 
   if (value) {
     return (
-      <div className="relative border border-ink-700 group bg-ink-950">
+      <div className="relative surface group bg-ink-950">
         <img
           src={value}
           alt={label}
@@ -74,7 +74,7 @@ export function ImageDrop({
             Remove
           </button>
         </div>
-        <span className="absolute bottom-1 left-1 bg-ink-950/90 border border-ink-700 text-ink-300 text-2xs px-1.5 py-0.5 uppercase tracking-label">
+        <span className="absolute bottom-1 left-1 bg-ink-950/90 surface text-ink-300 text-2xs px-1.5 py-0.5 uppercase tracking-label">
           {label}
         </span>
         <input
@@ -117,7 +117,7 @@ export function ImageDrop({
         flex flex-col items-center justify-center text-center
         ${compact ? 'h-28 px-3' : 'h-44 px-4'}
         ${dragging
-          ? 'border-brass bg-brass/5'
+          ? 'border-azure bg-azure/5'
           : 'border-ink-600 bg-ink-950 hover:border-ink-500 hover:bg-ink-900'}`}
     >
       <input

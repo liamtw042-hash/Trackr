@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { useTrades } from '@/store/TradeContext'
 import { useAuth } from '@/store/AuthContext'
 import {
   fmtMoney, fmtR, fmtDateTime, fmtPrice, valueClass, dateOf, computeStats,
 } from '@/lib/calc'
 import { RULES, ruleScore, type Trade } from '@/types'
-import { Panel, Empty, Tag, Input, Select, Stat, StatRow } from '@/components/ui/Primitives'
+import { Section, Empty, Tag, Input, Select, Stat, StatRow } from '@/components/ui/Primitives'
 import { RulesBadge } from '@/components/trade/RulesChecklist'
 import { TradeDetail } from '@/components/trade/TradeDetail'
 import type { ShellContext } from '@/components/layout/Shell'
@@ -29,9 +29,24 @@ export function Trades() {
   const { profile } = useAuth()
   const { openLogTrade } = useOutletContext<ShellContext>()
 
+  // The filter lives in the URL so the Desk can deep-link straight to the
+  // trades that are missing rules — the prompt there is only useful if it lands
+  // on the exact set it's talking about.
+  const [params, setParams] = useSearchParams()
+  const urlFilter = params.get('filter')
+  const initialFilter: Filter =
+    FILTERS.some((f) => f.value === urlFilter) ? (urlFilter as Filter) : 'all'
+
   const [selected, setSelected] = useState<Trade | null>(null)
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
+  const [filter, setFilterState] = useState<Filter>(initialFilter)
+
+  const setFilter = (next: Filter) => {
+    setFilterState(next)
+    if (next === 'all') params.delete('filter')
+    else params.set('filter', next)
+    setParams(params, { replace: true })
+  }
   const [sort, setSort] = useState<SortKey>('date')
   const [desc, setDesc] = useState(true)
 
@@ -111,7 +126,7 @@ export function Trades() {
       <button
         onClick={() => toggleSort(k)}
         className={`inline-flex items-center gap-1 hover:text-ink-100 transition-colors
-          ${sort === k ? 'text-brass-bright' : ''}`}
+          ${sort === k ? 'text-azure-bright' : ''}`}
       >
         {children}
         {sort === k && <span className="text-2xs">{desc ? '▾' : '▴'}</span>}
@@ -122,7 +137,7 @@ export function Trades() {
   if (loading) return <div className="skel h-96" />
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-section">
       <StatRow cols={5}>
         <Stat label="Shown" value={filtered.length} sub={`of ${trades.length}`} />
         <Stat
@@ -149,8 +164,10 @@ export function Trades() {
         />
       </StatRow>
 
-      <Panel
-        title={`Trades — ${filtered.length}`}
+      <Section
+        title="Trades"
+        meta={`${filtered.length} of ${trades.length}`}
+        tier="surface"
         bodyClass=""
         action={
           <div className="flex items-center gap-2">
@@ -232,7 +249,7 @@ export function Trades() {
                       <td className={`num ${valueClass(t.pnl)}`}>{fmtMoney(t.pnl)}</td>
                       <td>
                         {t.status === 'open' ? (
-                          <Tag tone="brass">Open</Tag>
+                          <Tag tone="azure">Open</Tag>
                         ) : (
                           <Tag tone={t.outcome === 'win' ? 'up' : t.outcome === 'loss' ? 'down' : 'neutral'}>
                             {t.outcome ?? '—'}
@@ -246,7 +263,7 @@ export function Trades() {
             </table>
           </div>
         )}
-      </Panel>
+      </Section>
 
       <TradeDetail trade={selected} onClose={() => setSelected(null)} />
     </div>

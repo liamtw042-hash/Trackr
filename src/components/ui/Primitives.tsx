@@ -1,26 +1,55 @@
 import { forwardRef } from 'react'
 import type { ReactNode, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 
-// ─── Panel ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Containers.
+//
+// Three deliberately unequal tiers. The previous build wrapped everything in an
+// identically-bordered box, which made the border meaningless and the page read
+// as a wireframe. Now:
+//
+//   Region   — no box. Whitespace and the label separate it. The default.
+//   Surface  — a background lift, no border. For tables and dense content.
+//   Hero     — lift plus one hairline. One or two per screen, no more.
+//
+// Choosing a tier is choosing how much a thing matters, so it's an explicit
+// prop rather than something every caller gets by default.
+// ─────────────────────────────────────────────────────────────────────────────
 
-export function Panel({
-  title, action, children, className = '', bodyClass = 'panel-body',
+type Tier = 'region' | 'surface' | 'hero'
+
+const TIER_CLASS: Record<Tier, string> = {
+  region: 'region',
+  surface: 'surface',
+  hero: 'surface-hero',
+}
+
+export function Section({
+  title, meta, action, children, tier = 'region', className = '', bodyClass,
 }: {
   title?: ReactNode
+  /** Right-aligned supporting figure — a count, a total, a timestamp. */
+  meta?: ReactNode
   action?: ReactNode
   children: ReactNode
+  tier?: Tier
   className?: string
   bodyClass?: string
 }) {
+  // A boxed tier needs internal padding; a bare region must not have any, or
+  // its content stops aligning with the regions above and below it.
+  const pad = bodyClass ?? (tier === 'region' ? '' : 'p-4')
+
   return (
-    <section className={`panel ${className}`}>
-      {(title || action) && (
-        <header className="panel-head">
-          <h2 className="panel-title">{title}</h2>
-          {action}
-        </header>
+    <section className={className}>
+      {(title || meta || action) && (
+        <div className="section-label">
+          {title && <h2>{title}</h2>}
+          {meta && <span className="meta">{meta}</span>}
+          {action && <span className={meta ? '' : 'ml-auto'}>{action}</span>}
+        </div>
       )}
-      <div className={bodyClass}>{children}</div>
+      <div className={`${TIER_CLASS[tier]} ${pad}`}>{children}</div>
     </section>
   )
 }
@@ -41,9 +70,9 @@ export function Field({
       <label className="label">{label}</label>
       {children}
       {error ? (
-        <p className="text-2xs text-down mt-1">{error}</p>
+        <p className="text-2xs text-down mt-1.5">{error}</p>
       ) : hint ? (
-        <p className="hint mt-1">{hint}</p>
+        <p className="hint mt-1.5">{hint}</p>
       ) : null}
     </div>
   )
@@ -77,20 +106,20 @@ export function Segmented<T extends string>({
   className?: string
 }) {
   return (
-    <div className={`flex border border-ink-700 divide-x divide-ink-700 ${className}`}>
+    <div className={`inline-flex w-full p-0.5 bg-ink-750 rounded gap-0.5 ${className}`}>
       {options.map((opt) => {
         const active = value === opt.value
         const tone =
-          opt.tone === 'up' ? 'bg-up/15 text-up border-up/40'
-          : opt.tone === 'down' ? 'bg-down/15 text-down border-down/40'
-          : 'bg-brass/15 text-brass-bright'
+          opt.tone === 'up' ? 'bg-up/18 text-up'
+          : opt.tone === 'down' ? 'bg-down/18 text-down'
+          : 'bg-azure/15 text-azure-bright'
         return (
           <button
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
-            className={`flex-1 px-2 py-1.5 text-xs font-medium transition-colors duration-75
-              ${active ? tone : 'bg-transparent text-ink-400 hover:bg-ink-800 hover:text-ink-100'}`}
+            className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-sm transition-colors duration-100
+              ${active ? tone : 'text-ink-400 hover:text-ink-100 hover:bg-ink-800'}`}
           >
             {opt.label}
           </button>
@@ -100,38 +129,68 @@ export function Segmented<T extends string>({
   )
 }
 
-// ─── Stat ────────────────────────────────────────────────────────────────────
+// ─── Figures ─────────────────────────────────────────────────────────────────
+
+type Tone = 'up' | 'down' | 'neutral' | 'azure'
+
+const TONE_TEXT: Record<Tone, string> = {
+  up: 'text-up',
+  down: 'text-down',
+  neutral: 'text-ink-50',
+  azure: 'text-azure-bright',
+}
 
 /**
- * A single figure with its label. Deliberately compact — the point is a wall
- * of readable numbers, not a grid of cards each holding one lonely value.
+ * The hero figure. Reserved for the two or three numbers that actually drive a
+ * decision — using it on everything would restore the flat "every panel equal"
+ * problem in a different form.
  */
+export function HeroStat({
+  label, value, sub, tone = 'neutral', title,
+}: {
+  label: string
+  value: ReactNode
+  sub?: ReactNode
+  tone?: Tone
+  title?: string
+}) {
+  return (
+    <div title={title}>
+      <div className="sub-label mb-2">{label}</div>
+      <div className={`font-mono text-hero font-medium ${TONE_TEXT[tone]}`}>{value}</div>
+      {sub && <div className="text-2xs text-ink-400 mt-1.5 leading-relaxed">{sub}</div>}
+    </div>
+  )
+}
+
+/** Standard figure. Boxless — a row of these is separated by spacing alone. */
 export function Stat({
   label, value, sub, tone = 'neutral', title,
 }: {
   label: string
   value: ReactNode
   sub?: ReactNode
-  tone?: 'up' | 'down' | 'neutral' | 'brass'
+  tone?: Tone
   title?: string
 }) {
-  const toneClass =
-    tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down'
-    : tone === 'brass' ? 'text-brass-bright' : 'text-ink-50'
   return (
-    <div className="px-3 py-2.5" title={title}>
-      <div className="text-2xs uppercase tracking-label text-ink-400 mb-1">{label}</div>
-      <div className={`font-mono text-base font-medium leading-none ${toneClass}`}>{value}</div>
-      {sub && <div className="text-2xs text-ink-400 mt-1 font-mono">{sub}</div>}
+    <div title={title} className="min-w-0">
+      <div className="text-2xs uppercase tracking-label text-azure-dim mb-1.5 truncate">{label}</div>
+      <div className={`font-mono text-figure font-medium ${TONE_TEXT[tone]}`}>{value}</div>
+      {sub && <div className="text-2xs text-ink-500 mt-1 truncate">{sub}</div>}
     </div>
   )
 }
 
-/** Stats laid out as a bordered grid — hairlines between, not gaps. */
+/**
+ * A row of Stats. No border, no dividers — just generous even spacing.
+ * Dividers here were a large part of what made the old page feel like a grid
+ * of cells rather than a designed layout.
+ */
 export function StatRow({ children, cols = 4 }: { children: ReactNode; cols?: number }) {
   return (
     <div
-      className="grid divide-x divide-ink-700 border border-ink-700 bg-ink-900"
+      className="grid gap-x-8 gap-y-5"
       style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
     >
       {children}
@@ -141,15 +200,10 @@ export function StatRow({ children, cols = 4 }: { children: ReactNode; cols?: nu
 
 // ─── Tag ─────────────────────────────────────────────────────────────────────
 
-export function Tag({
-  tone = 'neutral', children,
-}: {
-  tone?: 'up' | 'down' | 'neutral' | 'brass'
-  children: ReactNode
-}) {
+export function Tag({ tone = 'neutral', children }: { tone?: Tone; children: ReactNode }) {
   const cls =
     tone === 'up' ? 'tag-up' : tone === 'down' ? 'tag-down'
-    : tone === 'brass' ? 'tag-brass' : 'tag-neutral'
+    : tone === 'azure' ? 'tag-azure' : 'tag-neutral'
   return <span className={cls}>{children}</span>
 }
 
@@ -157,10 +211,10 @@ export function Tag({
 
 export function Empty({ title, detail, action }: { title: string; detail?: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+    <div className="flex flex-col items-center justify-center py-14 px-4 text-center">
       <div className="text-sm text-ink-200 font-medium">{title}</div>
-      {detail && <p className="text-xs text-ink-400 mt-1.5 max-w-sm leading-relaxed">{detail}</p>}
-      {action && <div className="mt-4">{action}</div>}
+      {detail && <p className="text-xs text-ink-400 mt-2 max-w-sm leading-relaxed">{detail}</p>}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   )
 }
@@ -176,9 +230,9 @@ export function Spinner({ className = 'w-3.5 h-3.5' }: { className?: string }) {
 
 export function SkeletonRows({ rows = 6, cols = 5 }: { rows?: number; cols?: number }) {
   return (
-    <div className="divide-y divide-ink-800">
+    <div className="space-y-2 p-1">
       {Array.from({ length: rows }, (_, r) => (
-        <div key={r} className="flex gap-3 px-2 py-2">
+        <div key={r} className="flex gap-4">
           {Array.from({ length: cols }, (_, c) => (
             <div key={c} className="skel h-3 flex-1" style={{ opacity: 1 - r * 0.12 }} />
           ))}
@@ -204,21 +258,24 @@ export function Modal({
   if (!open) return null
   return (
     <div
-      className="fixed inset-0 z-50 bg-ink-950/85 flex items-start justify-center p-4 sm:p-8 overflow-y-auto animate-fade-in"
+      className="fixed inset-0 z-50 bg-ink-950/88 flex items-start justify-center p-4 sm:p-8 overflow-y-auto animate-fade-in"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
-      <div className={`w-full ${width} panel my-auto animate-rise`}>
-        <header className="panel-head sticky top-0 z-20">
+      <div
+        className={`w-full ${width} my-auto animate-rise bg-ink-900 rounded-md
+                    ring-1 ring-inset ring-ink-700 shadow-2xl shadow-ink-950/60`}
+      >
+        <header className="flex items-center justify-between gap-3 px-4 h-12 border-b border-ink-800 sticky top-0 z-20 bg-ink-900 rounded-t-md">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-ink-50 leading-tight truncate">{title}</h2>
-            {subtitle && <p className="text-2xs text-ink-400 leading-tight truncate">{subtitle}</p>}
+            {subtitle && <p className="text-2xs text-ink-400 leading-tight truncate mt-0.5">{subtitle}</p>}
           </div>
           <button
             onClick={onClose}
-            className="text-ink-400 hover:text-ink-50 transition-colors p-1 -mr-1 shrink-0"
+            className="text-ink-400 hover:text-ink-50 transition-colors p-1 -mr-1 shrink-0 rounded"
             aria-label="Close"
           >
             <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -227,10 +284,10 @@ export function Modal({
           </button>
         </header>
 
-        <div className="max-h-[calc(100vh-14rem)] overflow-y-auto">{children}</div>
+        <div className="max-h-[calc(100vh-15rem)] overflow-y-auto">{children}</div>
 
         {footer && (
-          <footer className="flex items-center justify-end gap-2 px-3 py-2.5 border-t border-ink-700 bg-ink-850">
+          <footer className="flex items-center justify-end gap-2 px-4 py-3 border-t border-ink-800 rounded-b-md">
             {footer}
           </footer>
         )}
@@ -241,20 +298,38 @@ export function Modal({
 
 // ─── Confidence bar ──────────────────────────────────────────────────────────
 
-/**
- * Shown next to each extracted ticket field. A low bar is a prompt to check
- * that value against the screenshot before saving.
- */
 export function Confidence({ value }: { value: number | undefined }) {
   if (value === undefined) return null
   const pct = Math.round(Math.max(0, Math.min(1, value)) * 100)
-  const tone = pct >= 80 ? 'bg-up' : pct >= 50 ? 'bg-brass' : 'bg-down'
+  const tone = pct >= 80 ? 'bg-up' : pct >= 50 ? 'bg-azure' : 'bg-down'
   return (
-    <span className="inline-flex items-center gap-1" title={`${pct}% confidence in this reading`}>
-      <span className="w-6 h-1 bg-ink-700 overflow-hidden inline-block">
+    <span className="inline-flex items-center gap-1.5" title={`${pct}% confidence in this reading`}>
+      <span className="w-7 h-1 bg-ink-700 rounded-sm overflow-hidden inline-block">
         <span className={`block h-full ${tone}`} style={{ width: `${pct}%` }} />
       </span>
       <span className="text-2xs text-ink-400 font-mono">{pct}</span>
+    </span>
+  )
+}
+
+/**
+ * A horizontal magnitude bar used inline in lists. Reads as a sparkline rather
+ * than a chart — no axis, no frame, just the proportion.
+ */
+export function MiniBar({
+  value, max, tone = 'azure',
+}: {
+  value: number
+  max: number
+  tone?: Tone
+}) {
+  const pct = max > 0 ? Math.min(100, (Math.abs(value) / max) * 100) : 0
+  const fill =
+    tone === 'up' ? 'bg-up/70' : tone === 'down' ? 'bg-down/70'
+    : tone === 'azure' ? 'bg-azure/60' : 'bg-ink-600'
+  return (
+    <span className="block h-1 bg-ink-800 rounded-sm overflow-hidden">
+      <span className={`block h-full rounded-sm ${fill}`} style={{ width: `${pct}%` }} />
     </span>
   )
 }

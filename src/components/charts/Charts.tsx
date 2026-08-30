@@ -16,15 +16,15 @@ import type { Trade } from '@/types'
 // ─────────────────────────────────────────────────────────────────────────────
 
 const AXIS = {
-  stroke: '#3D4959',
+  stroke: '#465469',
   fontSize: 10,
   fontFamily: '"IBM Plex Mono", monospace',
 }
 
 const TOOLTIP_STYLE = {
-  backgroundColor: '#11161F',
-  border: '1px solid #2A3441',
-  borderRadius: 2,
+  backgroundColor: '#101520',
+  border: '1px solid #232B3B',
+  borderRadius: 4,
   fontSize: 11,
   fontFamily: '"IBM Plex Mono", monospace',
   padding: '6px 8px',
@@ -47,7 +47,7 @@ export function EquityChart({
   if (data.length < 2) {
     return (
       <div
-        className="flex items-center justify-center text-2xs text-ink-500 border border-dashed border-ink-700"
+        className="flex items-center justify-center text-2xs text-ink-500 border border-dashed border-ink-800 rounded-md"
         style={{ height }}
       >
         {data.length === 0
@@ -59,7 +59,7 @@ export function EquityChart({
 
   const final = data[data.length - 1].equity
   const up = final >= startingBalance
-  const colour = up ? '#24C98A' : '#F0555C'
+  const colour = up ? '#2FCE72' : '#F2555A'
 
   // Peak marker, so drawdown is visible rather than implied.
   const peak = data.reduce((best, d) => (d.equity > best.equity ? d : best), data[0])
@@ -86,12 +86,12 @@ export function EquityChart({
           </linearGradient>
         </defs>
 
-        <CartesianGrid stroke="#1E2632" strokeDasharray="0" vertical={false} />
+        <CartesianGrid stroke="#161C29" strokeDasharray="0" vertical={false} />
         <XAxis
           dataKey="i"
           tick={AXIS}
           tickLine={false}
-          axisLine={{ stroke: '#1E2632' }}
+          axisLine={{ stroke: '#161C29' }}
           minTickGap={28}
         />
         <YAxis
@@ -108,14 +108,14 @@ export function EquityChart({
         />
 
         {startingBalance > 0 && (
-          <ReferenceLine y={startingBalance} stroke="#3D4959" strokeDasharray="3 3" />
+          <ReferenceLine y={startingBalance} stroke="#465469" strokeDasharray="3 3" />
         )}
-        <ReferenceLine x={peak.i} stroke="#2A3441" strokeDasharray="2 3" />
+        <ReferenceLine x={peak.i} stroke="#2F3949" strokeDasharray="2 3" />
 
         <Tooltip
           contentStyle={TOOLTIP_STYLE}
-          labelStyle={{ color: '#8291A5', fontSize: 10 }}
-          cursor={{ stroke: '#3D4959', strokeWidth: 1 }}
+          labelStyle={{ color: '#8896AE', fontSize: 10 }}
+          cursor={{ stroke: '#465469', strokeWidth: 1 }}
           formatter={(v: number, _n, item) => [
             fmtMoney(v, 0),
             `${item.payload.ticker} ${item.payload.pnl >= 0 ? '+' : ''}${item.payload.pnl}`,
@@ -174,7 +174,7 @@ export function RDistribution({ trades, height = 160 }: { trades: Trade[]; heigh
   if (!data.length) {
     return (
       <div
-        className="flex items-center justify-center text-2xs text-ink-500 border border-dashed border-ink-700"
+        className="flex items-center justify-center text-2xs text-ink-500 border border-dashed border-ink-800 rounded-md"
         style={{ height }}
       >
         No closed trades with a recorded risk amount
@@ -185,17 +185,17 @@ export function RDistribution({ trades, height = 160 }: { trades: Trade[]; heigh
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 6, right: 4, left: -28, bottom: 0 }}>
-        <CartesianGrid stroke="#1E2632" vertical={false} />
-        <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={{ stroke: '#1E2632' }} />
+        <CartesianGrid stroke="#161C29" vertical={false} />
+        <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={{ stroke: '#161C29' }} />
         <YAxis tick={AXIS} tickLine={false} axisLine={false} width={48} allowDecimals={false} />
         <Tooltip
           contentStyle={TOOLTIP_STYLE}
-          cursor={{ fill: '#161C27' }}
+          cursor={{ fill: '#161C29' }}
           formatter={(v: number) => [`${v} trade${v === 1 ? '' : 's'}`, '']}
         />
         <Bar dataKey="count" isAnimationActive={false}>
           {data.map((d, i) => (
-            <Cell key={i} fill={d.positive ? '#24C98A' : d.label === '0R' ? '#5A6779' : '#F0555C'} />
+            <Cell key={i} fill={d.positive ? '#2FCE72' : d.label === '0R' ? '#64748E' : '#F2555A'} />
           ))}
         </Bar>
       </BarChart>
@@ -248,9 +248,9 @@ export function PerformanceBars({
 
             {/* Bars diverge from a centre line so wins and losses are directly comparable */}
             <div className="flex-1 h-3 relative min-w-[60px]">
-              <div className="absolute inset-y-0 left-1/2 w-px bg-ink-700" />
+              <div className="absolute inset-y-0 left-1/2 w-px bg-ink-800" />
               <div
-                className={`absolute inset-y-0 ${v >= 0 ? 'bg-up/70 left-1/2' : 'bg-down/70 right-1/2'}`}
+                className={`absolute inset-y-0 ${v >= 0 ? 'bg-up/75 left-1/2' : 'bg-down/75 right-1/2'}`}
                 style={{ width: `${width}%` }}
               />
             </div>

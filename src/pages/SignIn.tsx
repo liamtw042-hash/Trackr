@@ -44,15 +44,15 @@ export function SignIn() {
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-xs">
         <div className="flex items-center gap-2 mb-6">
-          <svg className="w-4 h-4 text-brass" viewBox="0 0 16 16" fill="none">
+          <svg className="w-4 h-4 text-azure" viewBox="0 0 16 16" fill="none">
             <path d="M1 12.5L4.5 7L8 9.5L11 3.5L15 6" stroke="currentColor" strokeWidth="1.5"
               strokeLinecap="square" />
           </svg>
           <span className="font-semibold text-ink-50 tracking-tight">Trackr</span>
         </div>
 
-        <form onSubmit={submit} className="panel">
-          <div className="panel-body space-y-3">
+        <form onSubmit={submit} className="surface">
+          <div className="p-4 space-y-3">
             <Field label="Email">
               <Input
                 type="email"

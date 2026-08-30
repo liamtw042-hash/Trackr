@@ -4,9 +4,10 @@ import { useAuth } from '@/store/AuthContext'
 import { useTrades } from '@/store/TradeContext'
 import { findPatterns, aiConfigured, MIN_TRADES_FOR_PATTERNS, type PatternReport } from '@/lib/ai'
 import { groupPerformance, fmtR, fmtMoney, fmtPct, round, valueClass } from '@/lib/calc'
+import { afterLoss, holdTimes, fmtDuration } from '@/lib/edge'
 import { RULES, MISTAKE_LABELS, EMOTIONS, ruleScore } from '@/types'
 import { EquityChart, RDistribution, PerformanceBars } from '@/components/charts/Charts'
-import { Panel, Stat, StatRow, Spinner, Empty, Tag } from '@/components/ui/Primitives'
+import { Section, Stat, StatRow, Spinner, Empty, Tag } from '@/components/ui/Primitives'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -18,6 +19,8 @@ export function Analysis() {
   const [metric, setMetric] = useState<'avgR' | 'pnl'>('avgR')
 
   const closed = useMemo(() => trades.filter((t) => t.status === 'closed'), [trades])
+  const tilt = useMemo(() => afterLoss(trades), [trades])
+  const hold = useMemo(() => holdTimes(trades), [trades])
 
   const byPair = useMemo(() => groupPerformance(trades, (t) => t.ticker || null), [trades])
   const bySetup = useMemo(() => groupPerformance(trades, (t) => t.setupType || null), [trades])
@@ -93,17 +96,17 @@ export function Analysis() {
 
   if (!closed.length) {
     return (
-      <Panel title="Analysis">
+      <Section title="Analysis">
         <Empty
           title="Nothing to analyse yet"
           detail="Close a few trades and this fills with performance by pair, setup, day and rule adherence."
         />
-      </Panel>
+      </Section>
     )
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-section">
 
       <StatRow cols={6}>
         <Stat label="Closed" value={stats.closed} sub={`${stats.open} open`} />
@@ -114,20 +117,20 @@ export function Analysis() {
         <Stat label="Max DD" value={fmtMoney(-stats.maxDrawdown, 0)} sub={fmtPct(stats.maxDrawdownPct, 0)} tone="down" />
       </StatRow>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <Panel className="lg:col-span-2" title="Equity">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-10 gap-y-section">
+        <Section className="lg:col-span-2" title="Equity">
           <EquityChart trades={trades} startingBalance={profile?.startingBalance ?? 0} height={220} />
-        </Panel>
-        <Panel
+        </Section>
+        <Section
           title="R distribution"
           action={<span className="text-2xs text-ink-500">where outcomes land</span>}
         >
           <RDistribution trades={trades} height={220} />
-        </Panel>
+        </Section>
       </div>
 
       {/* ── Rule impact — the core question ── */}
-      <Panel
+      <Section
         title="What each rule is worth"
         action={
           <span className="text-2xs text-ink-500">
@@ -183,18 +186,18 @@ export function Analysis() {
           "Too few" means one side has under five trades — a difference drawn from
           less than that is noise, and showing it as a finding would be misleading.
         </p>
-      </Panel>
+      </Section>
 
       {/* ── Breakdowns ── */}
       <div className="flex items-center gap-2">
         <span className="label mb-0">Measure by</span>
-        <div className="flex border border-ink-700 divide-x divide-ink-700">
+        <div className="flex surface divide-x divide-ink-800">
           {(['avgR', 'pnl'] as const).map((m) => (
             <button
               key={m}
               onClick={() => setMetric(m)}
               className={`px-2.5 py-1 text-2xs transition-colors ${
-                metric === m ? 'bg-brass/15 text-brass-bright' : 'text-ink-400 hover:text-ink-100 hover:bg-ink-800'
+                metric === m ? 'bg-azure/15 text-azure-bright' : 'text-ink-400 hover:text-ink-100 hover:bg-ink-800'
               }`}
             >
               {m === 'avgR' ? 'Avg R' : 'P&L'}
@@ -206,14 +209,14 @@ export function Analysis() {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        <Panel title="By pair"><PerformanceBars rows={byPair} metric={metric} /></Panel>
-        <Panel title="By direction"><PerformanceBars rows={byDirection} metric={metric} /></Panel>
-        <Panel title="By day"><PerformanceBars rows={byDay} metric={metric} /></Panel>
-        <Panel title="By setup"><PerformanceBars rows={bySetup} metric={metric} /></Panel>
-        <Panel title="By state at entry"><PerformanceBars rows={byEmotion} metric={metric} /></Panel>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-10 gap-y-section">
+        <Section title="By pair"><PerformanceBars rows={byPair} metric={metric} /></Section>
+        <Section title="By direction"><PerformanceBars rows={byDirection} metric={metric} /></Section>
+        <Section title="By day"><PerformanceBars rows={byDay} metric={metric} /></Section>
+        <Section title="By setup"><PerformanceBars rows={bySetup} metric={metric} /></Section>
+        <Section title="By state at entry"><PerformanceBars rows={byEmotion} metric={metric} /></Section>
 
-        <Panel title="Mistakes">
+        <Section title="Mistakes">
           {byMistake.length === 0 ? (
             <p className="text-2xs text-ink-500">None flagged.</p>
           ) : (
@@ -229,11 +232,85 @@ export function Analysis() {
               ))}
             </div>
           )}
-        </Panel>
+        </Section>
+      </div>
+
+      {/* ── After a loss: the cheapest available revenge-trading check ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-10 gap-y-section">
+        <Section title="The trade after a loss">
+          {!tilt.comparable ? (
+            <p className="text-xs text-ink-400 leading-relaxed">
+              {tilt.n} trade{tilt.n === 1 ? '' : 's'} so far followed directly after a
+              loss. Needs at least eight before the comparison says anything.
+            </p>
+          ) : (
+            <div className="space-y-section">
+              <div className="grid grid-cols-2 gap-x-6">
+                <div>
+                  <div className="text-2xs uppercase tracking-label text-azure-dim mb-1.5">After a loss</div>
+                  <div className={`font-mono text-figure ${valueClass(tilt.avgR)}`}>{fmtR(tilt.avgR)}</div>
+                  <div className="text-2xs text-ink-500 mt-1">n={tilt.n}</div>
+                </div>
+                <div>
+                  <div className="text-2xs uppercase tracking-label text-azure-dim mb-1.5">All trades</div>
+                  <div className={`font-mono text-figure ${valueClass(tilt.baselineR)}`}>{fmtR(tilt.baselineR)}</div>
+                  <div className="text-2xs text-ink-500 mt-1">n={closed.length}</div>
+                </div>
+              </div>
+              <p className="text-2xs text-ink-300 leading-relaxed">
+                {tilt.avgR !== null && tilt.baselineR !== null && tilt.avgR < tilt.baselineR - 0.3 ? (
+                  <span className="text-down">
+                    Trades taken straight after a loss run materially worse than your
+                    average. That gap is what revenge trading looks like in the data.
+                  </span>
+                ) : (
+                  <>No meaningful drop-off after a loss on this sample.</>
+                )}
+              </p>
+            </div>
+          )}
+        </Section>
+
+        <Section title="Hold time">
+          {hold.winnersMedianHours === null && hold.losersMedianHours === null ? (
+            <p className="text-xs text-ink-400 leading-relaxed">
+              No closed trade has both an open and a close time recorded.
+            </p>
+          ) : (
+            <div className="space-y-section">
+              <div className="grid grid-cols-2 gap-x-6">
+                <div>
+                  <div className="text-2xs uppercase tracking-label text-azure-dim mb-1.5">Winners held</div>
+                  <div className="font-mono text-figure text-up">{fmtDuration(hold.winnersMedianHours)}</div>
+                  <div className="text-2xs text-ink-500 mt-1">median · n={hold.winnersN}</div>
+                </div>
+                <div>
+                  <div className="text-2xs uppercase tracking-label text-azure-dim mb-1.5">Losers held</div>
+                  <div className="font-mono text-figure text-down">{fmtDuration(hold.losersMedianHours)}</div>
+                  <div className="text-2xs text-ink-500 mt-1">median · n={hold.losersN}</div>
+                </div>
+              </div>
+              {hold.longest.length > 0 && (
+                <div className="space-y-1 pt-1">
+                  <div className="sub-label mb-1.5">Longest held</div>
+                  {hold.longest.map(({ trade: t, hours }) => (
+                    <div key={t.id} className="flex items-baseline justify-between font-mono text-2xs">
+                      <span className="text-ink-200">{t.ticker}</span>
+                      <span className="flex items-baseline gap-x-10 gap-y-section">
+                        <span className="text-ink-500">{fmtDuration(hours)}</span>
+                        <span className={valueClass(t.rMultiple)}>{fmtR(t.rMultiple)}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </Section>
       </div>
 
       {/* ── AI patterns ── */}
-      <Panel
+      <Section
         title="Pattern analysis"
         action={
           closed.length >= MIN_TRADES_FOR_PATTERNS && aiConfigured() ? (
@@ -248,7 +325,7 @@ export function Analysis() {
             <div className="flex items-center gap-2">
               <div className="flex-1 h-1 bg-ink-800">
                 <div
-                  className="h-full bg-brass"
+                  className="h-full bg-azure"
                   style={{ width: `${Math.min(100, (closed.length / MIN_TRADES_FOR_PATTERNS) * 100)}%` }}
                 />
               </div>
@@ -268,7 +345,7 @@ export function Analysis() {
           </div>
         ) : !aiConfigured() ? (
           <p className="hint">
-            Needs <code className="text-brass-bright">VITE_ANTHROPIC_API_KEY</code> in your .env.
+            Needs <code className="text-azure-bright">VITE_ANTHROPIC_API_KEY</code> in your .env.
           </p>
         ) : !report ? (
           <p className="text-xs text-ink-300 leading-relaxed">
@@ -277,16 +354,16 @@ export function Analysis() {
             are still too thin to call.
           </p>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-section">
             {report.headline && (
-              <p className="text-sm text-ink-50 leading-snug border-l-2 border-brass pl-2.5">
+              <p className="text-sm text-ink-50 leading-snug border-l-2 border-azure pl-2.5">
                 {report.headline}
               </p>
             )}
 
             {report.findings.map((f, i) => (
-              <div key={i} className="border border-ink-700">
-                <div className="px-2.5 py-1.5 bg-ink-850 flex items-center justify-between gap-2">
+              <div key={i} className="surface">
+                <div className="px-2.5 py-1.5 bg-ink-850/60 flex items-center justify-between gap-2">
                   <span className="text-xs font-medium text-ink-50">{f.title}</span>
                   <Tag tone={f.confidence === 'strong' ? 'up' : 'neutral'}>
                     {f.confidence}
@@ -297,7 +374,7 @@ export function Analysis() {
             ))}
 
             {report.notEnoughData.length > 0 && (
-              <div className="border border-ink-700">
+              <div className="surface">
                 <div className="px-2.5 py-1.5 bg-ink-850 text-2xs uppercase tracking-label text-ink-400">
                   Can't answer yet
                 </div>
@@ -312,7 +389,7 @@ export function Analysis() {
             )}
           </div>
         )}
-      </Panel>
+      </Section>
     </div>
   )
 }

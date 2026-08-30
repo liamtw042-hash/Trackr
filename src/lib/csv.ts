@@ -25,12 +25,39 @@ export interface ParseReport {
   rows: ParsedRow[]
   headers: string[]
   mapping: Partial<Record<FieldKey, string>>
+  /** What keyword detection found, before any manual override. */
+  detected: Partial<Record<FieldKey, string>>
+  /** Required fields with no column — these block the import. */
   unmapped: FieldKey[]
+  totals: {
+    rows: number
+    importable: number
+    duplicates: number
+    failed: number
+    closed: number
+    open: number
+  }
 }
 
-type FieldKey =
+export type FieldKey =
   | 'ticker' | 'direction' | 'entryPrice' | 'exitPrice' | 'stopLoss'
   | 'takeProfit' | 'size' | 'pnl' | 'openedAt' | 'closedAt'
+
+/** Field metadata, for the column-mapping editor. */
+export const FIELDS: { key: FieldKey; label: string; required: boolean; hint: string }[] = [
+  { key: 'ticker', label: 'Pair', required: true, hint: 'GBP/JPY, GBPJPY, or a full product name' },
+  { key: 'direction', label: 'Direction', required: true, hint: 'Buy / Sell, or Long / Short' },
+  { key: 'entryPrice', label: 'Entry price', required: true, hint: 'The level the position opened at' },
+  { key: 'openedAt', label: 'Opened', required: true, hint: 'Day-first (DD/MM/YYYY) is assumed' },
+  { key: 'exitPrice', label: 'Exit price', required: false, hint: 'Blank means the trade is still open' },
+  { key: 'closedAt', label: 'Closed', required: false, hint: '' },
+  { key: 'stopLoss', label: 'Stop loss', required: false, hint: 'Used to derive the real risk per trade' },
+  { key: 'takeProfit', label: 'Take profit', required: false, hint: '' },
+  { key: 'size', label: 'Units', required: false, hint: 'Position size as the broker states it' },
+  { key: 'pnl', label: 'P&L', required: false, hint: "The broker's realised figure, preferred over any estimate" },
+]
+
+export const REQUIRED_FIELDS: FieldKey[] = FIELDS.filter((f) => f.required).map((f) => f.key)
 
 /**
  * Header keyword patterns, most specific first. CMC uses different wording
@@ -143,7 +170,19 @@ export function rowHash(parts: (string | number | null)[]): string {
 
 export function parseCmcCsv(
   text: string,
-  opts: { existingHashes: Set<string>; defaultRiskPercent: number; accountBalance: number }
+  opts: {
+    existingHashes: Set<string>
+    defaultRiskPercent: number
+    accountBalance: number
+    /**
+     * Column overrides from the mapping editor. Keyword detection handles the
+     * common CMC exports, but the format is not stable across reports or
+     * platform versions — when it guesses wrong the import must still be
+     * usable, so any field can be pointed at a different column by hand.
+     * An explicit empty string means "this field is deliberately unmapped".
+     */
+     overrides?: Partial<Record<FieldKey, string>>
+  }
 ): ParseReport {
   const result = Papa.parse<Record<string, string>>(text, {
     header: true,
@@ -152,10 +191,15 @@ export function parseCmcCsv(
   })
 
   const headers = result.meta.fields ?? []
-  const mapping = buildMapping(headers)
-  const unmapped = (['ticker', 'direction', 'entryPrice', 'openedAt'] as FieldKey[]).filter(
-    (k) => !mapping[k]
-  )
+  const detected = buildMapping(headers)
+
+  const mapping: Partial<Record<FieldKey, string>> = { ...detected }
+  for (const [k, v] of Object.entries(opts.overrides ?? {})) {
+    if (v) mapping[k as FieldKey] = v
+    else delete mapping[k as FieldKey]
+  }
+
+  const unmapped = REQUIRED_FIELDS.filter((k) => !mapping[k])
 
   const get = (row: Record<string, string>, key: FieldKey): string | undefined => {
     const header = mapping[key]
@@ -276,5 +320,21 @@ export function parseCmcCsv(
     return { raw, draft, hash, errors, duplicate }
   })
 
-  return { rows, headers, mapping, unmapped }
+  const importable = rows.filter((r) => r.draft && !r.duplicate)
+
+  return {
+    rows,
+    headers,
+    mapping,
+    detected,
+    unmapped,
+    totals: {
+      rows: rows.length,
+      importable: importable.length,
+      duplicates: rows.filter((r) => r.duplicate).length,
+      failed: rows.filter((r) => !r.draft).length,
+      closed: importable.filter((r) => r.draft?.status === 'closed').length,
+      open: importable.filter((r) => r.draft?.status === 'open').length,
+    },
+  }
 }

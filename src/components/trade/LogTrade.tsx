@@ -3,7 +3,7 @@ import toast from 'react-hot-toast'
 import { useAuth } from '@/store/AuthContext'
 import { useTrades } from '@/store/TradeContext'
 import { extractTicket, aiConfigured } from '@/lib/ai'
-import { uploadImage } from '@/lib/images'
+import { compressImage, uploadImage } from '@/lib/images'
 import {
   estimatePnl, outcomeFromPnl, positionSizeFor, rMultiple, riskAmountFor,
   riskPercentFor, stopDistance, plannedRR, num, fmtMoney, fmtR,
@@ -64,7 +64,14 @@ function blankForm(defaultRisk: number): FormState {
   }
 }
 
-export function LogTrade({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function LogTrade({
+  open, onClose, initialTicket = null,
+}: {
+  open: boolean
+  onClose: () => void
+  /** A screenshot pasted from anywhere in the app — extraction starts at once. */
+  initialTicket?: File | null
+}) {
   const { user, profile } = useAuth()
   const { addTrade } = useTrades()
 
@@ -203,6 +210,25 @@ export function LogTrade({ open, onClose }: { open: boolean; onClose: () => void
     }
   }, [])
 
+  // A ticket pasted at the app level arrives as a File and has to travel the
+  // same compress → extract path a drop would, so both routes produce an
+  // identical result and there's only one extraction code path to trust.
+  useEffect(() => {
+    if (!open || !initialTicket) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const dataUrl = await compressImage(initialTicket)
+        if (cancelled) return
+        setTicketImage(dataUrl)
+        await runExtract(dataUrl)
+      } catch {
+        if (!cancelled) toast.error('Could not read the pasted image')
+      }
+    })()
+    return () => { cancelled = true }
+  }, [open, initialTicket, runExtract])
+
   const onTicketChange = (dataUrl: string | null) => {
     setTicketImage(dataUrl)
     if (dataUrl) void runExtract(dataUrl)
@@ -325,7 +351,7 @@ export function LogTrade({ open, onClose }: { open: boolean; onClose: () => void
         </>
       }
     >
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] divide-y lg:divide-y-0 lg:divide-x divide-ink-700">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] divide-y lg:divide-y-0 lg:divide-x divide-ink-800">
 
         {/* ── Mechanical ── */}
         <div className="p-3 space-y-3">
@@ -432,7 +458,7 @@ export function LogTrade({ open, onClose }: { open: boolean; onClose: () => void
                   <button
                     type="button"
                     onClick={() => set('positionSize', String(derived.suggestedSize))}
-                    className="text-brass-bright hover:underline font-mono"
+                    className="text-azure-bright hover:underline font-mono"
                   >
                     use {derived.suggestedSize.toLocaleString()}
                   </button>
@@ -508,7 +534,7 @@ export function LogTrade({ open, onClose }: { open: boolean; onClose: () => void
               {derived.pnl !== null && (
                 <div
                   className={`flex items-center justify-between px-3 py-2 border
-                    ${derived.pnl >= 0 ? 'border-up/30 bg-up-wash' : 'border-down/30 bg-down-wash'}`}
+                    ${derived.pnl >= 0 ? 'bg-up-wash rounded-md' : 'bg-down-wash rounded-md'}`}
                 >
                   <span className="text-2xs uppercase tracking-label text-ink-300">Result</span>
                   <div className="flex items-center gap-4 font-mono">
@@ -612,13 +638,13 @@ export function LogTrade({ open, onClose }: { open: boolean; onClose: () => void
           </div>
 
           {extracting && (
-            <div className="flex items-center gap-2 text-xs text-ink-300 border border-ink-700 px-2.5 py-2">
+            <div className="flex items-center gap-2 text-xs text-ink-300 surface px-3 py-2.5">
               <Spinner /> Reading ticket…
             </div>
           )}
 
           {extract && !extracting && (
-            <div className="border border-ink-700 divide-y divide-ink-700 text-2xs">
+            <div className="surface divide-y divide-ink-800 text-2xs">
               <div className="px-2.5 py-1.5 bg-ink-850 uppercase tracking-label text-ink-400">
                 What it read
               </div>
@@ -642,9 +668,9 @@ export function LogTrade({ open, onClose }: { open: boolean; onClose: () => void
               ))}
 
               {extract.warnings.length > 0 && (
-                <div className="px-2.5 py-2 bg-brass-wash">
+                <div className="px-2.5 py-2 bg-azure-wash">
                   {extract.warnings.map((w, i) => (
-                    <p key={i} className="text-brass-bright leading-snug">{w}</p>
+                    <p key={i} className="text-azure-bright leading-snug">{w}</p>
                   ))}
                 </div>
               )}
@@ -658,8 +684,8 @@ export function LogTrade({ open, onClose }: { open: boolean; onClose: () => void
           )}
 
           {!aiConfigured() && (
-            <p className="hint border border-ink-700 px-2.5 py-2">
-              Ticket reading needs <code className="text-brass-bright">VITE_ANTHROPIC_API_KEY</code> in
+            <p className="hint surface px-3 py-2.5">
+              Ticket reading needs <code className="text-azure-bright">VITE_ANTHROPIC_API_KEY</code> in
               your .env. Manual entry works without it.
             </p>
           )}

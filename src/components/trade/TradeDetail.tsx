@@ -34,8 +34,8 @@ function localFromIso(iso: string | null): string {
 
 function ChartReadPanel({ read, phase }: { read: ChartRead; phase: string }) {
   return (
-    <div className="border border-ink-700 divide-y divide-ink-700">
-      <div className="px-2.5 py-1.5 bg-ink-850 flex items-center justify-between">
+    <div className="surface divide-y divide-ink-800">
+      <div className="px-2.5 py-1.5 bg-ink-850/60 flex items-center justify-between">
         <span className="text-2xs uppercase tracking-label text-ink-400">{phase} chart — AI read</span>
         <span className="text-2xs text-ink-500 font-mono">{fmtDateTime(read.readAt)}</span>
       </div>
@@ -55,13 +55,13 @@ function ChartReadPanel({ read, phase }: { read: ChartRead; phase: string }) {
         ))}
 
       {read.disagreements.length > 0 && (
-        <div className="px-2.5 py-2 bg-brass-wash">
-          <div className="text-2xs uppercase tracking-label text-brass-bright mb-1">
+        <div className="px-2.5 py-2 bg-azure-wash">
+          <div className="text-2xs uppercase tracking-label text-azure-bright mb-1">
             Disagrees with your rules
           </div>
           {read.disagreements.map((d, i) => (
             <p key={i} className="text-xs text-ink-100 leading-relaxed">
-              <span className="text-brass-bright">
+              <span className="text-azure-bright">
                 {RULES.find((r) => r.key === d.rule)?.label ?? d.rule}:
               </span>{' '}
               {d.note}
@@ -296,7 +296,7 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
       }
     >
       {/* ── Numbers strip ── */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-ink-700 border-b border-ink-700 bg-ink-850">
+      <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-ink-800 border-b border-ink-800 bg-ink-850">
         {([
           ['Entry', fmtPrice(trade.entryPrice, trade.ticker), 'neutral'],
           ['Stop', fmtPrice(trade.stopLoss, trade.ticker), 'neutral'],
@@ -318,7 +318,7 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-ink-700">
+      <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-ink-800">
 
         {/* ── Left: outcome + rules + notes ── */}
         <div className="p-3 space-y-3">
@@ -380,7 +380,7 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
 
               {derived?.pnl != null && (
                 <div className={`flex items-center justify-between px-3 py-2 border ${
-                  derived.pnl >= 0 ? 'border-up/30 bg-up-wash' : 'border-down/30 bg-down-wash'
+                  derived.pnl >= 0 ? 'bg-up-wash rounded-md' : 'bg-down-wash rounded-md'
                 }`}>
                   <span className="text-2xs uppercase tracking-label text-ink-300">Result</span>
                   <div className="flex items-center gap-4 font-mono">
@@ -453,7 +453,7 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
                 {pending ? (
                   <ImageDrop value={pending} onChange={setPending} label={`${phase} chart`} compact />
                 ) : stored ? (
-                  <a href={stored} target="_blank" rel="noreferrer" className="block border border-ink-700">
+                  <a href={stored} target="_blank" rel="noreferrer" className="block surface">
                     <img src={stored} alt={`${phase} chart`} className="w-full h-32 object-contain bg-ink-950" />
                   </a>
                 ) : (
@@ -479,7 +479,7 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
             {trade.status !== 'closed' ? (
               <p className="hint">Available once the trade is closed.</p>
             ) : trade.review ? (
-              <div className="border border-ink-700 divide-y divide-ink-700">
+              <div className="surface divide-y divide-ink-800">
                 {trade.review.didWell.length > 0 && (
                   <div className="px-2.5 py-2">
                     <div className="text-2xs uppercase tracking-label text-up mb-1">Did well</div>
@@ -521,14 +521,14 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
           {trade.ticketScreenshotUrl && (
             <div>
               <div className="label">Original ticket</div>
-              <a href={trade.ticketScreenshotUrl} target="_blank" rel="noreferrer" className="block border border-ink-700">
+              <a href={trade.ticketScreenshotUrl} target="_blank" rel="noreferrer" className="block surface">
                 <img src={trade.ticketScreenshotUrl} alt="Trade ticket" className="w-full h-24 object-contain bg-ink-950" />
               </a>
             </div>
           )}
 
           {trade.mistake && (
-            <div className="border border-down/30 bg-down-wash px-2.5 py-2">
+            <div className="bg-down-wash rounded-md bg-down-wash px-2.5 py-2">
               <span className="text-2xs uppercase tracking-label text-down">Flagged mistake</span>
               <p className="text-xs text-ink-100 mt-0.5">{MISTAKE_LABELS[trade.mistake] ?? trade.mistake}</p>
             </div>

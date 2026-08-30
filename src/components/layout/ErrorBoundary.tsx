@@ -26,16 +26,16 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="panel max-w-lg w-full">
-          <header className="panel-head">
-            <h1 className="panel-title text-down">Something broke</h1>
+        <div className="surface max-w-lg w-full">
+          <header className="section-head">
+            <h1 className="sub-label text-down">Something broke</h1>
           </header>
-          <div className="panel-body space-y-3">
+          <div className="p-4 space-y-3">
             <p className="text-xs text-ink-200 leading-relaxed">
               A component failed to render. Your data is untouched — this is a display
               fault, not a write.
             </p>
-            <pre className="text-2xs font-mono text-down bg-ink-950 border border-ink-700 p-2.5 overflow-x-auto whitespace-pre-wrap">
+            <pre className="text-2xs font-mono text-down bg-ink-950 surface p-2.5 overflow-x-auto whitespace-pre-wrap">
               {error.message}
             </pre>
             <div className="flex gap-2">

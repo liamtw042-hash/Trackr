@@ -5,7 +5,7 @@ import { useQuotes } from '@/hooks/useQuotes'
 import { fmtMoney, fmtSigned, fmtPct, valueClass, num, round } from '@/lib/calc'
 import type { Holding } from '@/types'
 import {
-  Panel, Stat, StatRow, Empty, Modal, Field, Input, Textarea, Spinner,
+  Section, Stat, StatRow, Empty, Modal, Field, Input, Textarea, Spinner,
 } from '@/components/ui/Primitives'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ export function Portfolio() {
         />
       </StatRow>
 
-      <Panel
+      <Section
         title="ASX holdings"
         bodyClass=""
         action={
@@ -241,7 +241,7 @@ export function Portfolio() {
                       {live !== null ? (
                         <span className="text-ink-50" title={q?.asOf ? `As at ${new Date(q.asOf).toLocaleString('en-AU')}` : undefined}>
                           {live.toFixed(3)}
-                          {q?.stale && <span className="text-brass ml-1" title="Delayed or stale">·</span>}
+                          {q?.stale && <span className="text-azure ml-1" title="Delayed or stale">·</span>}
                         </span>
                       ) : (
                         <span className="text-ink-600" title={q?.error ?? 'No live price — showing cost basis'}>
@@ -258,10 +258,10 @@ export function Portfolio() {
             </table>
           </div>
         )}
-      </Panel>
+      </Section>
 
       {/* Price source disclosure — the limits belong on the page, not buried in a README */}
-      <Panel title="Price data">
+      <Section title="Price data">
         <div className="space-y-1.5 text-2xs text-ink-400 leading-relaxed">
           {error ? (
             <p className="text-down">{error}</p>
@@ -286,7 +286,7 @@ export function Portfolio() {
             holding; don't trade off it.
           </p>
         </div>
-      </Panel>
+      </Section>
 
       {formOpen && (
         <HoldingForm
