@@ -64,6 +64,18 @@ export function EquityChart({
   // Peak marker, so drawdown is visible rather than implied.
   const peak = data.reduce((best, d) => (d.equity > best.equity ? d : best), data[0])
 
+  // Never zero-base the axis. An account that ran 10,000 → 14,283 plotted from
+  // zero spends most of the panel on empty space and flattens the shape that
+  // matters. Fit the axis to the data (including the starting line) with a
+  // small margin, the way a broker's equity chart does.
+  const values = data.map((d) => d.equity)
+  if (startingBalance > 0) values.push(startingBalance)
+  const lo = Math.min(...values)
+  const hi = Math.max(...values)
+  const pad = Math.max((hi - lo) * 0.12, Math.abs(hi) * 0.01, 1)
+  const domain: [number, number] = [lo - pad, hi + pad]
+  const useThousands = Math.max(Math.abs(lo), Math.abs(hi)) >= 10000
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 6, right: 4, left: -20, bottom: 0 }}>
@@ -87,7 +99,12 @@ export function EquityChart({
           tickLine={false}
           axisLine={false}
           width={56}
-          tickFormatter={(v: number) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : String(Math.round(v)))}
+          domain={domain}
+          // One format for the whole axis. Deciding per tick makes neighbouring
+          // labels switch between "9320" and "10.8k", which reads as two scales.
+          tickFormatter={(v: number) =>
+            useThousands ? `${(v / 1000).toFixed(1)}k` : Math.round(v).toLocaleString('en-AU')
+          }
         />
 
         {startingBalance > 0 && (

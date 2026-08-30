@@ -1,0 +1,52 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Trackr Firestore rules.
+//
+// Single-user tool: every document is owned by exactly one uid and is only
+// readable or writable by that uid. There is no sharing, so there is no case
+// where a signed-in user should see another user's row.
+//
+// Paste this into Firebase console → Firestore Database → Rules → Publish.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // The profile document is keyed by uid.
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // Trades and holdings carry the owner in a userId field.
+    // `resource` is the stored doc (read/update/delete); `request.resource` is
+    // the incoming one (create/update). Both are checked on update so a write
+    // can't reassign a document to somebody else.
+    match /trades/{tradeId} {
+      allow read, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isOwner(resource.data.userId)
+                    && isOwner(request.resource.data.userId);
+    }
+
+    match /holdings/{holdingId} {
+      allow read, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isOwner(resource.data.userId)
+                    && isOwner(request.resource.data.userId);
+    }
+
+    // Anything not matched above is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

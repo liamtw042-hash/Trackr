@@ -1,249 +1,195 @@
-# Trackr — Professional Trading Journal
+# Trackr
 
-A full-featured, AI-powered trading journal built with React, Firebase, and Claude. Track every trade, analyse your patterns, and get personalised coaching from AI — all for free.
+A trading journal and portfolio tracker built for one person. Forex CFDs traded
+discretionarily on CMC Markets, plus long-term ASX holdings, in one place.
 
-![Trackr Dashboard](https://via.placeholder.com/1200x600/0a0f1e/3b82f6?text=Trackr+Trading+Journal)
-
-## Features
-
-- **AI Trade Analysis** — Upload a chart screenshot and Claude vision auto-fills trade details and rates the setup against your personal strategy
-- **Morning Briefing** — Daily AI summary of your recent performance and what to watch for today
-- **Pattern Detection** — Identifies behavioural patterns like "You lose 80% of trades on Fridays"
-- **Streak Protection** — Warning when you're on a 3+ loss streak before you submit a new trade
-- **Trade Replay** — Compare entry vs exit screenshots with AI execution feedback
-- **Weekly Summary** — Auto-generated Monday performance review
-- **Full Analytics** — 8 charts including equity curve, drawdown, emotion vs performance, time-of-day analysis
-- **Calendar Heatmap** — GitHub-style trading activity grid
-- **Milestone Celebrations** — Animated modal on 1st, 10th, 50th, 100th trades and first winning week
-- **CSV Export** — Download all trades as a spreadsheet
-- **Import Historical Stats** — Bring in your pre-Trackr trading history
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Frontend | React 18 + Vite |
-| Styling | Tailwind CSS v3 |
-| Auth & Database | Firebase (Auth + Firestore + Storage) |
-| Charts | Recharts |
-| AI | Claude Sonnet 4.6 (Anthropic API) |
-| Deployment | Vercel |
+Not a product. No sign-up flow, no marketing pages, no multi-tenancy.
 
 ---
 
-## Quick Start
+## What it does
 
-### Prerequisites
+**Logging** — the part everything else depends on. Three ways in:
 
-- Node.js 18+ and npm
-- A [Firebase](https://console.firebase.google.com) project
-- An [Anthropic API key](https://console.anthropic.com)
+1. **Screenshot a CMC ticket.** A vision model reads the pair, direction, entry,
+   stop, target and size, and pre-fills the form. Every field carries a
+   confidence score, and anything it couldn't read is left blank rather than
+   guessed. You confirm before it saves.
+2. **CSV import.** Bulk import a CMC export. Columns are matched by keyword
+   (CMC's headers differ between reports), the mapping is shown before anything
+   is written, and re-importing an overlapping date range is safe — duplicates
+   are detected and skipped.
+3. **Manual entry.** Position size derives from risk % and stop distance; R:R
+   and P&L compute live. `⌘↵` saves.
 
-### 1. Clone and install
+Mechanical data and context are deliberately separate. The top of the form is
+everything needed to save a valid trade, in about ten seconds. Rules, notes,
+emotion and chart screenshots go in later from the trade detail view.
+
+**The rules checklist** — the five rules of the strategy, tracked per trade:
+zone had 3+ touches, rejection candle at the zone, with the daily trend, at
+least 2:1 R:R, risked ~1%. Each is yes / no / unanswered — a blank is a real
+option, distinct from "I broke this rule", because conflating the two would
+quietly wreck the adherence analysis. Analysis then shows what each individual
+rule is worth in average R.
+
+**AI features** (all optional, all via the Anthropic API):
+- Ticket extraction, as above.
+- **Chart reading** — describes what's visible in an entry or exit screenshot
+  and flags where it disagrees with the rules you ticked. Framed as a second
+  opinion: it's told it cannot count zone touches from a windowed chart or read
+  EMAs that aren't plotted, and it says so rather than inventing a number.
+- **Post-trade review** — judges process against your rules, not outcome. A
+  rule-following loss is a good trade and it will say so.
+- **Pattern finding** — locked until 20 closed trades, with a progress bar
+  showing how far off you are. Marks a finding "strong" only with 10+ trades
+  per side; everything else is "tentative", and it lists what it still can't
+  answer.
+- **Ask your journal** — natural-language questions answered from your own
+  trades, always with the sample size stated.
+
+**ASX portfolio** — a secondary panel. Holdings entered by hand (NAB Trade has
+no API), priced automatically. See the honesty note below.
+
+---
+
+## Setup
 
 ```bash
-git clone https://github.com/your-username/trackr.git
-cd trackr
 npm install
-```
-
-### 2. Set up Firebase
-
-1. Go to [Firebase Console](https://console.firebase.google.com) and create a new project
-2. Enable **Authentication** → Sign-in method → Email/Password
-3. Enable **Firestore Database** → Start in production mode
-4. Enable **Storage** (for trade screenshots)
-5. Go to Project Settings → Your apps → Add web app → copy the config
-
-#### Firestore Security Rules
-
-In Firebase Console → Firestore → Rules, paste:
-
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    match /trades/{tradeId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-    }
-  }
-}
-```
-
-#### Storage Security Rules
-
-In Firebase Console → Storage → Rules, paste:
-
-```
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /screenshots/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
-
-### 3. Configure environment variables
-
-Copy the example file and fill in your values:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```env
-# Firebase — from your Firebase project settings
-VITE_FIREBASE_API_KEY=AIzaSy...
-VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your-project-id
-VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
-VITE_FIREBASE_APP_ID=1:123456789:web:abc123
-
-# Anthropic — from console.anthropic.com
-VITE_ANTHROPIC_API_KEY=sk-ant-...
-```
-
-> **Note:** The `VITE_` prefix is required for Vite to expose variables to the browser. Never commit your `.env` file — it's in `.gitignore`.
-
-### 4. Run locally
-
-```bash
+cp .env.example .env     # then fill it in — instructions are in the file
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+### What you need to configure yourself
 
----
+| | Where | Needed for |
+|---|---|---|
+| **Firebase** | [console.firebase.google.com](https://console.firebase.google.com) | Everything. Auth + database. |
+| **Anthropic** | [console.anthropic.com](https://console.anthropic.com) | All AI features. App works without it. |
+| **Cloudinary** | [cloudinary.com](https://cloudinary.com) | Screenshot storage. Trades still save without it. |
 
-## Deployment to Vercel
+**Firebase, step by step:**
+1. Create a project → Add app → Web. Copy the config values into `.env`.
+2. Build → Authentication → Sign-in method → enable **Email/Password**.
+3. Authentication → Users → **Add user**. That's your login. There is no
+   registration screen in the app, by design.
+4. Build → Firestore Database → Create database → **production mode**.
+5. Firestore → Rules → paste the contents of [`firestore.rules`](firestore.rules)
+   → Publish.
 
-### Option A — Vercel CLI
+**Cloudinary:** copy your Cloud Name, then Settings → Upload → Add upload
+preset → set Signing Mode to **Unsigned** → save, and put the preset name in
+`.env`.
+
+### Deploying
 
 ```bash
-npm install -g vercel
-vercel
+npx vercel
 ```
 
-### Option B — GitHub integration (recommended)
+Add every `VITE_*` variable from your `.env` under Project → Settings →
+Environment Variables. The ASX quote endpoint (`api/quotes.ts`) is a Vercel
+serverless function and deploys automatically.
 
-1. Push your code to GitHub
-2. Go to [vercel.com](https://vercel.com) → New Project → Import your repo
-3. Vercel auto-detects Vite — no build config needed
-4. Add your environment variables under **Settings → Environment Variables**:
-   - `VITE_FIREBASE_API_KEY`
-   - `VITE_FIREBASE_AUTH_DOMAIN`
-   - `VITE_FIREBASE_PROJECT_ID`
-   - `VITE_FIREBASE_STORAGE_BUCKET`
-   - `VITE_FIREBASE_MESSAGING_SENDER_ID`
-   - `VITE_FIREBASE_APP_ID`
-   - `VITE_ANTHROPIC_API_KEY`
-5. Click **Deploy**
+`vercel.json` routes all non-`/api` paths to `index.html` so client-side routes
+survive a refresh. The `(?!api/)` in that pattern is load-bearing — without it
+the quote endpoint gets rewritten to the SPA and every price lookup silently
+returns HTML.
 
-The `vercel.json` at the root handles SPA routing so all routes work on refresh.
-
-### Authorised domains
-
-After deploying, add your Vercel domain to Firebase:
-
-Firebase Console → Authentication → Settings → Authorised domains → Add domain
+In plain `npm run dev` there's no serverless runtime, so ASX prices won't load
+and holdings fall back to cost basis (clearly labelled). Use `npx vercel dev`
+to exercise that path locally.
 
 ---
 
-## Project Structure
+## Things you should know
+
+**Your Anthropic API key ships to the browser.** There's no backend, so the key
+is in the bundle and anyone who can open the deployed page can read it from
+devtools. That's an acceptable trade for a private single-user tool, but it
+means: keep the deployment URL to yourself, set a spend limit on the key, and
+rotate it if the URL ever leaks. If you later want this properly locked down,
+the fix is to move the Anthropic calls into serverless functions alongside
+`api/quotes.ts` — the code in `src/lib/ai.ts` would move almost unchanged.
+
+**Screenshot extraction is good, not perfect.** It reads a clean CMC position
+panel reliably. It struggles with low-resolution crops, heavy compression, and
+panels showing several positions at once (it takes the first and warns you).
+This is why nothing saves without your confirmation and why unread fields stay
+blank — a plausible wrong price that looks right is worse than an empty box.
+
+**Chart reading has hard limits, and the prompt enforces them.** A vision model
+cannot count how many times a zone has been touched from one screenshot — the
+earlier touches are off-screen. It cannot verify 50/200 EMA alignment unless
+the EMAs are actually drawn on the chart. It's instructed to say so rather than
+guess, and to raise a disagreement only on a clear contradiction. Treat it as a
+prompt to look again, not a verdict.
+
+**ASX prices come from Yahoo Finance's undocumented chart endpoint**, proxied
+through `api/quotes.ts` because no free ASX API is callable from a browser
+(none send CORS headers). Roughly 20 minutes delayed. There is no SLA — it can
+break or start rate-limiting without warning, and some codes (LICs, ETFs,
+recently renamed tickers) don't resolve. When a price is missing the row falls
+back to cost basis and says **no price** rather than showing a stale figure as
+current. Fine for tracking a long-term holding; don't trade off it. Swapping
+providers means editing only `api/quotes.ts` — keep the response shape.
+
+**P&L for cross pairs is taken from the broker, not computed.** Converting a
+GBP/JPY move into AUD needs the AUD/JPY rate at the moment of close, which
+isn't recoverable from entry and exit price alone. So the $ figure comes from
+CMC (via CSV or typed in) wherever possible, and price-derived P&L is only ever
+shown as an estimate. **R-multiple is the primary metric throughout** — `pnl ÷
+risk` is exact regardless of quote currency, which is why the dashboard leads
+with expectancy in R rather than dollars.
+
+**Sample sizes are shown everywhere, and small ones are visibly dimmed.** A
+100% win rate on three trades is noise, and the UI is built to stop that
+reading as an edge: breakdown rows under five trades are dimmed, rule
+comparisons print "too few" instead of a difference when either side is under
+five, and pattern analysis won't run at all under 20 closed trades.
+
+---
+
+## Migrating from the previous version
+
+Open **Settings**. If any trades are still on the old schema, a migration panel
+appears. It:
+
+- maps every v1 field to its v2 equivalent
+- matches old free-text checklist entries to the five fixed rule keys by keyword
+- leaves anything it can't match **unanswered** rather than guessing — a wrong
+  `false` would corrupt the rule analysis
+- appends old AI summaries to that trade's notes instead of dropping them
+- is idempotent: already-migrated trades are skipped, so it's safe to re-run
+
+Nothing is deleted. The v1 checklist fields are cleared only after their content
+has been mapped forward.
+
+There's also a **Recompute balance** action there, if the running balance ever
+drifts out of step with your trade history.
+
+---
+
+## Stack
+
+React 18 · TypeScript · Vite · Tailwind · Firebase Auth + Firestore ·
+Cloudinary · Anthropic API (`claude-opus-5`) · Recharts · Vercel
+
+The model is a single constant at the top of `src/lib/ai.ts` if you want to
+change it — pricing at [anthropic.com/pricing](https://www.anthropic.com/pricing).
 
 ```
 src/
-├── components/
-│   ├── auth/          Login, Register, Onboarding, AuthLayout
-│   ├── dashboard/     MorningBriefing, WeeklySummary, PatternInsights,
-│   │                  EquityCurve, CalendarHeatmap, MilestoneModal
-│   ├── layout/        Layout, Sidebar, Header
-│   ├── trades/        AddTradeModal, TradeDetailModal
-│   └── shared/        LoadingScreen, ErrorBoundary, SkeletonCard
-├── context/
-│   ├── AuthContext    Firebase Auth + user profile (Firestore)
-│   └── TradeContext   Real-time trade feed + computed stats
-├── firebase/
-│   └── config.js      Firebase app initialisation
-├── hooks/
-│   └── useMilestones  Milestone detection + Firestore persistence
-├── pages/
-│   ├── Dashboard      Stats, charts, AI briefing, heatmap
-│   ├── TradeLog       Filterable table, CSV export, detail modal
-│   ├── Analytics      8 performance charts + pattern insights
-│   └── Settings       Profile, risk, strategy, import, danger zone
-├── services/
-│   ├── aiService      Claude API: analysis, briefing, patterns, replay
-│   └── storageService Firebase Storage upload + image compression
-└── utils/
-    ├── tradeCalculations  P&L, R-multiple, risk, position size
-    ├── strategyParser     Extract rules from plain-text strategy
-    └── mergeStats         Combine live + imported historical stats
+  lib/          calc, ai, csv, images, firebase, migration, serialize
+  store/        Auth / Trade / Holdings contexts
+  components/   ui, trade, charts, layout, ai
+  pages/        Desk, Trades, Analysis, Portfolio, Settings, SignIn
+  types/        the whole data model
+api/quotes.ts   ASX price proxy (Vercel function)
 ```
-
----
-
-## AI Features & API Usage
-
-All AI calls go through `src/services/aiService.js` using `@anthropic-ai/sdk` with `dangerouslyAllowBrowser: true`.
-
-| Feature | Function | When called |
-|---|---|---|
-| Chart analysis | `analyzeTradeScreenshot` | On screenshot upload in Add Trade |
-| Morning briefing | `generateMorningBriefing` | Once per day (cached by date) |
-| Weekly summary | `generateWeeklySummary` | Once per week (cached by week) |
-| Pattern detection | `detectPatterns` | Once per week (cached by week) |
-| Trade replay | `analyzeTradeReplay` | On demand in Trade Detail |
-
-AI calls are cached in `localStorage` to minimise API usage. Briefings are cached for the current day, summaries and patterns for the current week.
-
-> **Production note:** For a production app, AI calls should go through a server-side proxy (Vercel Edge Functions or API routes) to protect your API key. The current browser-side implementation is suitable for personal use.
-
----
-
-## Environment Variables Reference
-
-| Variable | Required | Description |
-|---|---|---|
-| `VITE_FIREBASE_API_KEY` | ✓ | Firebase web API key |
-| `VITE_FIREBASE_AUTH_DOMAIN` | ✓ | Firebase auth domain |
-| `VITE_FIREBASE_PROJECT_ID` | ✓ | Firebase project ID |
-| `VITE_FIREBASE_STORAGE_BUCKET` | ✓ | Firebase Storage bucket |
-| `VITE_FIREBASE_MESSAGING_SENDER_ID` | ✓ | Firebase sender ID |
-| `VITE_FIREBASE_APP_ID` | ✓ | Firebase app ID |
-| `VITE_ANTHROPIC_API_KEY` | ✓ | Anthropic API key for Claude |
-
----
-
-## Local Development Tips
 
 ```bash
-# Install dependencies
-npm install
-
-# Start dev server (hot reload)
-npm run dev
-
-# Production build
-npm run build
-
-# Preview production build locally
-npm run preview
+npm run typecheck   # tsc, no emit
+npm run build       # typecheck + production build
 ```
-
-The app runs on port 5173 by default. Firebase emulators are not configured — the app connects to your real Firebase project in all environments.
-
----
-
-## Licence
-
-MIT — use it, fork it, build on it.
