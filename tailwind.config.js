@@ -1,61 +1,94 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
-        navy: {
-          DEFAULT: '#0a0f1e',
-          50: '#e8eaf0',
-          100: '#c5cad8',
-          200: '#9fa7bc',
-          300: '#7984a0',
-          400: '#5c6889',
-          500: '#3f4d73',
-          600: '#2d3a5e',
-          700: '#1c2748',
-          800: '#111827',
-          900: '#0a0f1e',
+        // ── Ground: a cool blue-slate ink. Never pure black — #000 on an OLED
+        //    panel makes hairline borders vanish and the whole UI lose structure.
+        ink: {
+          950: '#080B11', // page ground
+          900: '#0C1017', // panel
+          850: '#11161F', // raised panel / table header
+          800: '#161C27', // hover
+          700: '#1E2632', // hairline border
+          600: '#2A3441', // stronger border / divider
+          500: '#3D4959', // disabled text
+          400: '#5A6779', // dim text
+          300: '#8291A5', // muted text
+          200: '#AEBBCC', // secondary text
+          100: '#D7DFEA', // primary text
+          50: '#EDF2F8', // emphasis text
         },
-        card: '#111827',
-        win: '#10b981',
-        loss: '#ef4444',
-        accent: '#3b82f6',
-        gold: '#f59e0b',
+        // ── P&L. Reserved exclusively for profit/loss and rule pass/fail.
+        //    Never used decoratively.
+        up: {
+          DEFAULT: '#24C98A',
+          dim: '#1A8F62',
+          wash: 'rgba(36,201,138,0.10)',
+        },
+        down: {
+          DEFAULT: '#F0555C',
+          dim: '#B33B41',
+          wash: 'rgba(240,85,92,0.10)',
+        },
+        // ── The one accent: a desaturated brass. Chosen because it sits far
+        //    from both the green and the red in hue, so it never reads as a
+        //    P&L signal, and it carries the instrument-panel register.
+        brass: {
+          DEFAULT: '#C89B3C',
+          bright: '#E0B458',
+          dim: '#8A6B28',
+          wash: 'rgba(200,155,60,0.10)',
+        },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+      },
+      fontSize: {
+        '2xs': ['0.6875rem', { lineHeight: '1rem' }], // 11px — table data
+        xs: ['0.75rem', { lineHeight: '1.125rem' }], // 12px
+        sm: ['0.8125rem', { lineHeight: '1.25rem' }], // 13px — body default
+        base: ['0.875rem', { lineHeight: '1.375rem' }], // 14px
+      },
+      letterSpacing: {
+        label: '0.09em',
+      },
+      borderRadius: {
+        // Deliberately tight. Trading terminals are rectilinear; heavy
+        // rounding is the single strongest "SaaS dashboard" tell.
+        DEFAULT: '2px',
+        sm: '2px',
+        md: '3px',
+        lg: '4px',
+      },
+      spacing: {
+        row: '1.75rem', // standard dense table row height
       },
       animation: {
-        'fade-in': 'fadeIn 0.3s ease-in-out',
-        'slide-up': 'slideUp 0.3s ease-out',
-        'slide-in': 'slideIn 0.3s ease-out',
-        'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
+        'fade-in': 'fadeIn 140ms ease-out',
+        'rise': 'rise 160ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'flash-up': 'flashUp 600ms ease-out',
+        'flash-down': 'flashDown 600ms ease-out',
       },
       keyframes: {
         fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
+          from: { opacity: '0' },
+          to: { opacity: '1' },
         },
-        slideUp: {
-          '0%': { transform: 'translateY(16px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
+        rise: {
+          from: { opacity: '0', transform: 'translateY(4px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
         },
-        slideIn: {
-          '0%': { transform: 'translateX(-16px)', opacity: '0' },
-          '100%': { transform: 'translateX(0)', opacity: '1' },
+        flashUp: {
+          '0%': { backgroundColor: 'rgba(36,201,138,0.18)' },
+          '100%': { backgroundColor: 'transparent' },
         },
-        pulseGlow: {
-          '0%, 100%': { boxShadow: '0 0 0 0 rgba(59, 130, 246, 0)' },
-          '50%': { boxShadow: '0 0 20px 4px rgba(59, 130, 246, 0.3)' },
+        flashDown: {
+          '0%': { backgroundColor: 'rgba(240,85,92,0.18)' },
+          '100%': { backgroundColor: 'transparent' },
         },
-      },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'card-gradient': 'linear-gradient(135deg, #111827 0%, #0f172a 100%)',
       },
     },
   },

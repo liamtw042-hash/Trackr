@@ -1,191 +1,245 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  * {
-    box-sizing: border-box;
-  }
-
-  html {
-    scroll-behavior: smooth;
-  }
-
-  body {
-    @apply bg-navy-900 text-white font-sans antialiased;
-    background-color: #0a0f1e;
-    min-height: 100vh;
-  }
-
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: #0a0f1e;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: #1e2d45;
-    border-radius: 3px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: #2d4a6e;
-  }
-
-  input[type='number']::-webkit-inner-spin-button,
-  input[type='number']::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-
-  select {
+  :root {
     color-scheme: dark;
   }
 
-  select option,
-  select optgroup {
-    background-color: #1f2937;
-    color: #ffffff;
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-ink-950 text-ink-100 font-sans text-sm antialiased;
+    /* Every figure in the app lines up in a column somewhere. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Numerals never reflow when they change. */
+  .font-mono,
+  input[type='number'],
+  table {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1, 'zero' 1;
+  }
+
+  ::selection {
+    @apply bg-brass/25 text-ink-50;
+  }
+
+  /* Scrollbars are part of a dense UI, not something to hide. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-ink-950;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-ink-700 border-2 border-solid border-ink-950;
+    border-radius: 6px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-ink-600;
+  }
+  ::-webkit-scrollbar-corner {
+    @apply bg-ink-950;
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-1 ring-brass/70 ring-offset-0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
 @layer components {
-  .card {
-    @apply bg-card rounded-xl border border-white/5 shadow-lg;
-    background: #111827;
+  /* ── Panels ──────────────────────────────────────────────────────────
+     A panel is a bordered rectangle on the ground. No shadow, no radius
+     beyond a hairline softening, no gradient. Structure comes from the
+     1px border and the background step, exactly like a terminal window. */
+  .panel {
+    @apply bg-ink-900 border border-ink-700;
   }
 
-  .card-hover {
-    @apply card transition-all duration-200 hover:border-white/10 hover:shadow-xl;
+  .panel-head {
+    @apply flex items-center justify-between gap-3 px-3 h-9
+           border-b border-ink-700 bg-ink-850;
+  }
+
+  .panel-title {
+    @apply text-2xs font-medium uppercase tracking-label text-ink-300;
+  }
+
+  .panel-body {
+    @apply p-3;
+  }
+
+  /* ── Labels ──────────────────────────────────────────────────────── */
+  .label {
+    @apply block text-2xs font-medium uppercase tracking-label text-ink-400 mb-1;
+  }
+
+  .hint {
+    @apply text-2xs text-ink-400 leading-snug;
+  }
+
+  /* ── Inputs ──────────────────────────────────────────────────────── */
+  .field {
+    @apply w-full bg-ink-950 border border-ink-700 px-2 py-1.5
+           text-sm text-ink-50 placeholder:text-ink-500
+           transition-colors duration-100
+           hover:border-ink-600
+           focus:border-brass focus:outline-none focus:ring-0;
+  }
+
+  .field-mono {
+    @apply field font-mono;
+  }
+
+  select.field {
+    @apply cursor-pointer pr-7 appearance-none bg-no-repeat;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%235A6779' stroke-width='1.5'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
+    background-position: right 0.5rem center;
+    background-size: 12px;
+  }
+
+  textarea.field {
+    @apply resize-none leading-relaxed;
+  }
+
+  /* Kill the number spinners — they're noise on a price field. */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+
+  /* ── Buttons ─────────────────────────────────────────────────────── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5
+           px-3 py-1.5 text-xs font-medium
+           border transition-colors duration-100
+           disabled:opacity-40 disabled:cursor-not-allowed;
   }
 
   .btn-primary {
-    @apply bg-accent hover:bg-blue-600 text-white font-semibold py-2.5 px-5 rounded-lg
-      transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/50
-      disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply btn bg-brass/15 border-brass/50 text-brass-bright
+           hover:bg-brass/25 hover:border-brass;
   }
 
-  .btn-secondary {
-    @apply bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 px-5 rounded-lg
-      border border-white/10 transition-all duration-200 focus:outline-none
-      focus:ring-2 focus:ring-white/20 disabled:opacity-50 disabled:cursor-not-allowed;
+  .btn-ghost {
+    @apply btn bg-transparent border-ink-700 text-ink-200
+           hover:bg-ink-800 hover:border-ink-600 hover:text-ink-50;
   }
 
   .btn-danger {
-    @apply bg-loss/10 hover:bg-loss/20 text-loss font-medium py-2.5 px-5 rounded-lg
-      border border-loss/20 transition-all duration-200;
+    @apply btn bg-down/10 border-down/40 text-down
+           hover:bg-down/20 hover:border-down/70;
   }
 
-  .input-field {
-    @apply bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white
-      placeholder-white/30 focus:outline-none focus:border-accent/60 focus:ring-1
-      focus:ring-accent/30 transition-all duration-200 w-full;
+  .btn-sm {
+    @apply px-2 py-1 text-2xs;
   }
 
-  .label {
-    @apply text-sm font-medium text-white/60 mb-1.5 block;
+  /* ── Data tables ─────────────────────────────────────────────────── */
+  .tbl {
+    @apply w-full border-collapse text-2xs;
   }
 
-  .stat-card {
-    @apply card p-5 flex flex-col gap-1;
+  .tbl thead th {
+    @apply sticky top-0 z-10 bg-ink-850 text-ink-400
+           text-2xs font-medium uppercase tracking-label
+           text-left px-2 py-1.5 whitespace-nowrap
+           border-b border-ink-700;
   }
 
-  .stat-value {
-    @apply text-2xl font-bold text-white;
+  .tbl thead th.num {
+    @apply text-right;
   }
 
-  .stat-label {
-    @apply text-xs text-white/50 uppercase tracking-wider font-medium;
+  .tbl tbody tr {
+    @apply border-b border-ink-800/70 transition-colors duration-75;
   }
 
-  .badge-win {
-    @apply bg-win/10 text-win border border-win/20 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  .tbl tbody tr:hover {
+    @apply bg-ink-850;
   }
 
-  .badge-loss {
-    @apply bg-loss/10 text-loss border border-loss/20 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  .tbl tbody td {
+    @apply px-2 py-1.5 whitespace-nowrap align-middle;
   }
 
-  .badge-neutral {
-    @apply bg-white/10 text-white/70 border border-white/10 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  .tbl tbody td.num {
+    @apply text-right font-mono;
   }
 
-  .nav-link {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/50 hover:text-white
-      hover:bg-white/5 transition-all duration-200 font-medium text-sm cursor-pointer;
+  /* ── Value colouring — the only place green/red appear ────────────── */
+  .val-up {
+    @apply text-up;
+  }
+  .val-down {
+    @apply text-down;
+  }
+  .val-flat {
+    @apply text-ink-400;
   }
 
-  .nav-link-active {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-white
-      bg-accent/10 border border-accent/20 font-semibold text-sm;
+  /* ── Tags ────────────────────────────────────────────────────────── */
+  .tag {
+    @apply inline-flex items-center px-1.5 py-px text-2xs font-medium
+           border uppercase tracking-label;
+  }
+  .tag-up {
+    @apply tag bg-up-wash border-up/30 text-up;
+  }
+  .tag-down {
+    @apply tag bg-down-wash border-down/30 text-down;
+  }
+  .tag-neutral {
+    @apply tag bg-ink-800 border-ink-600 text-ink-300;
+  }
+  .tag-brass {
+    @apply tag bg-brass-wash border-brass/30 text-brass-bright;
   }
 
-  .page-title {
-    @apply text-2xl font-bold text-white;
+  /* ── Section rule — a labelled hairline, used instead of card stacks
+        to separate content within a panel. */
+  .rule {
+    @apply flex items-center gap-2 my-3;
+  }
+  .rule::after {
+    content: '';
+    @apply flex-1 h-px bg-ink-700;
+  }
+  .rule-label {
+    @apply text-2xs font-medium uppercase tracking-label text-ink-400 shrink-0;
   }
 
-  .section-title {
-    @apply text-lg font-semibold text-white;
+  /* ── Skeleton ────────────────────────────────────────────────────── */
+  .skel {
+    @apply bg-ink-800 animate-pulse;
   }
-
-  .divider {
-    @apply border-t border-white/5 my-4;
-  }
-
-  .gradient-text {
-    @apply bg-gradient-to-r from-accent to-win bg-clip-text text-transparent;
-  }
-
-  .glow-blue {
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
-  }
-
-  .glow-green {
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
-  }
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-}
-
-/* Page transition animation */
-.page-enter {
-  opacity: 0;
-  transform: translateY(8px);
-}
-
-.page-enter-active {
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 250ms ease, transform 250ms ease;
-}
-
-.page-exit {
-  opacity: 1;
-}
-
-.page-exit-active {
-  opacity: 0;
-  transition: opacity 200ms ease;
-}
-
-/* Toast overrides */
-.react-hot-toast-container {
-  z-index: 9999;
 }
