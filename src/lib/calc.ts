@@ -115,7 +115,14 @@ const EMPTY_STATS: Stats = {
   bestTrade: 0, worstTrade: 0, maxDrawdown: 0, maxDrawdownPct: 0, currentStreak: 0,
 }
 
-export function computeStats(trades: Trade[]): Stats {
+/**
+ * @param startingBalance Account equity before the first trade. Drawdown
+ *   percentage is meaningless without it — a $500 dip is 5% of a $10k account
+ *   and 50% of a $1k one — so pass it wherever the figure is displayed.
+ *   Omitting it yields a percentage against peak cumulative P&L instead, which
+ *   is only correct for an account that started at zero.
+ */
+export function computeStats(trades: Trade[], startingBalance = 0): Stats {
   if (!trades.length) return { ...EMPTY_STATS }
 
   const closed = trades.filter((t) => t.status === 'closed')
@@ -152,8 +159,11 @@ export function computeStats(trades: Trade[]): Stats {
   const chron = [...closed].sort(
     (a, b) => dateOf(a).getTime() - dateOf(b).getTime()
   )
-  let equity = 0
-  let peak = 0
+  // Walk actual equity, not cumulative P&L. Measuring the drop against peak
+  // P&L rather than peak equity overstates it by roughly the ratio of account
+  // size to profit, and reports 0% for any account that has never been net up.
+  let equity = startingBalance
+  let peak = startingBalance
   let maxDd = 0
   let maxDdPct = 0
   for (const t of chron) {

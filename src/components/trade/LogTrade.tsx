@@ -6,7 +6,7 @@ import { extractTicket, aiConfigured } from '@/lib/ai'
 import { uploadImage } from '@/lib/images'
 import {
   estimatePnl, outcomeFromPnl, positionSizeFor, rMultiple, riskAmountFor,
-  riskPercentFor, stopDistance, plannedRR, num, fmtMoney, fmtR, round,
+  riskPercentFor, stopDistance, plannedRR, num, fmtMoney, fmtR,
 } from '@/lib/calc'
 import { emptyRules, FX_PAIRS, TIMEFRAMES, MISTAKES, EMOTIONS } from '@/types'
 import type { Direction, RuleState, TicketExtract, TradeDraft } from '@/types'
@@ -93,6 +93,7 @@ export function LogTrade({ open, onClose }: { open: boolean; onClose: () => void
     setExitImage(null)
     setExtract(null)
     setShowContext(false)
+    pnlTouched.current = false
     const t = setTimeout(() => tickerRef.current?.focus(), 60)
     return () => clearTimeout(t)
   }, [open, defaultRisk])
@@ -149,6 +150,22 @@ export function LogTrade({ open, onClose }: { open: boolean; onClose: () => void
     const amt = riskAmountFor(balance, defaultRisk)
     if (amt !== null) setForm((f) => (f.riskAmount ? f : { ...f, riskAmount: String(amt) }))
   }, [open, balance, defaultRisk])
+
+  // Whatever sits in the P&L field is what moves the account balance on save.
+  // For a cross pair the price-derived estimate can be materially off (it can't
+  // know the AUD conversion at close), so it is written into the field rather
+  // than shown as a placeholder — visible, and overwritable with CMC's figure.
+  const pnlTouched = useRef(false)
+  useEffect(() => {
+    if (form.status !== 'closed' || pnlTouched.current) return
+    const est = estimatePnl({
+      direction: form.direction,
+      entryPrice: num(form.entryPrice),
+      exitPrice: num(form.exitPrice),
+      positionSize: num(form.positionSize),
+    })
+    if (est !== null) set('pnl', String(est))
+  }, [form.status, form.direction, form.entryPrice, form.exitPrice, form.positionSize, set])
 
   // ── Ticket extraction ──
   const runExtract = useCallback(async (dataUrl: string) => {
@@ -466,16 +483,16 @@ export function LogTrade({ open, onClose }: { open: boolean; onClose: () => void
                 <Field
                   label="P&L $"
                   hint={
-                    derived.estimated !== null && num(form.pnl) === null
-                      ? `est. ${fmtMoney(derived.estimated)}`
+                    !pnlTouched.current && derived.estimated !== null
+                      ? 'Estimated from price — replace with CMC\u2019s figure'
                       : 'From CMC'
                   }
                 >
                   <Input
                     mono type="number" step="any" inputMode="decimal"
                     value={form.pnl}
-                    onChange={(e) => set('pnl', e.target.value)}
-                    placeholder={derived.estimated !== null ? String(derived.estimated) : '0.00'}
+                    onChange={(e) => { pnlTouched.current = true; set('pnl', e.target.value) }}
+                    placeholder="0.00"
                   />
                 </Field>
                 <Field label="Stop ended at" hint="If trailed">
@@ -652,4 +669,3 @@ export function LogTrade({ open, onClose }: { open: boolean; onClose: () => void
   )
 }
 
-export { round }

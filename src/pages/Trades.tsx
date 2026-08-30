@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { useTrades } from '@/store/TradeContext'
+import { useAuth } from '@/store/AuthContext'
 import {
   fmtMoney, fmtR, fmtDateTime, fmtPrice, valueClass, dateOf, computeStats,
 } from '@/lib/calc'
@@ -25,6 +26,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 
 export function Trades() {
   const { trades, loading } = useTrades()
+  const { profile } = useAuth()
   const { openLogTrade } = useOutletContext<ShellContext>()
 
   const [selected, setSelected] = useState<Trade | null>(null)
@@ -52,14 +54,40 @@ export function Trades() {
       }
     })
 
+    /**
+     * Nulls always sink to the bottom, whichever way the column is sorted — an
+     * open trade with no R yet is missing data, not the worst result. Handled
+     * before the flip so the sign reversal doesn't float them back to the top,
+     * and without arithmetic on the sentinels (−Infinity minus −Infinity is
+     * NaN, which leaves the comparator inconsistent and the order arbitrary).
+     */
+    const byNumber = (x: number | null, y: number | null): number | null => {
+      if (x === null && y === null) return 0
+      if (x === null) return 1
+      if (y === null) return -1
+      return null
+    }
+
     list = [...list].sort((a, b) => {
       let cmp = 0
       switch (sort) {
-        case 'pair': cmp = a.ticker.localeCompare(b.ticker); break
-        // Nulls sort last in both directions — an unrecorded R is not "worst".
-        case 'r': cmp = (a.rMultiple ?? -Infinity) - (b.rMultiple ?? -Infinity); break
-        case 'pnl': cmp = (a.pnl ?? -Infinity) - (b.pnl ?? -Infinity); break
-        default: cmp = dateOf(a).getTime() - dateOf(b).getTime()
+        case 'pair':
+          cmp = a.ticker.localeCompare(b.ticker)
+          break
+        case 'r': {
+          const nulls = byNumber(a.rMultiple, b.rMultiple)
+          if (nulls !== null) return nulls
+          cmp = (a.rMultiple as number) - (b.rMultiple as number)
+          break
+        }
+        case 'pnl': {
+          const nulls = byNumber(a.pnl, b.pnl)
+          if (nulls !== null) return nulls
+          cmp = (a.pnl as number) - (b.pnl as number)
+          break
+        }
+        default:
+          cmp = dateOf(a).getTime() - dateOf(b).getTime()
       }
       return desc ? -cmp : cmp
     })
@@ -68,7 +96,10 @@ export function Trades() {
   }, [trades, query, filter, sort, desc])
 
   // Stats reflect the current filter, so narrowing the view answers a question.
-  const viewStats = useMemo(() => computeStats(filtered), [filtered])
+  const viewStats = useMemo(
+    () => computeStats(filtered, profile?.startingBalance ?? 0),
+    [filtered, profile?.startingBalance]
+  )
 
   const toggleSort = (key: SortKey) => {
     if (sort === key) setDesc((d) => !d)

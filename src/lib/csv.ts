@@ -112,7 +112,7 @@ function parseDate(v: string | undefined): string | null {
 function normaliseTicker(v: string | undefined): string {
   if (!v) return ''
   // "GBP/JPY - Cash", "Great Britain Pound vs Japanese Yen" → GBPJPY
-  const direct = v.toUpperCase().match(/\b([A-Z]{3})\s*[/\-]?\s*([A-Z]{3})\b/)
+  const direct = v.toUpperCase().match(/\b([A-Z]{3})\s*[/-]?\s*([A-Z]{3})\b/)
   if (direct) return `${direct[1]}${direct[2]}`
   return v.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6)
 }
@@ -190,13 +190,43 @@ export function parseCmcCsv(
     const duplicate = opts.existingHashes.has(hash) || seenInFile.has(hash)
     seenInFile.add(hash)
 
-    if (errors.length || !direction || !ticker || !openedAt) {
+    // Each required value is re-tested by identity rather than relying on
+    // `errors.length`, so the narrowing below is something the compiler can
+    // actually follow — and so a future error pushed onto the array can't
+    // silently start rejecting otherwise-valid rows.
+    if (errors.length || !direction || !ticker || !openedAt || entryPrice === null) {
       return { raw, draft: null, hash, errors, duplicate }
     }
 
     const isClosed = exitPrice !== null || pnl !== null
-    const riskAmount = opts.accountBalance
-      ? round((opts.accountBalance * opts.defaultRiskPercent) / 100, 2)
+
+    // What was actually at risk on THIS trade: stop distance × position size.
+    // Deriving it from today's balance instead would date-stamp every
+    // historical R-multiple with the current account size, which is wrong for
+    // every row and worst for the oldest ones — and R is the primary metric.
+    // Fall back to the default-risk estimate only when the export omitted the
+    // stop, and mark it so the UI can say the R is approximate.
+    const derivedRisk =
+      stopLoss !== null && size !== null
+        ? round(Math.abs(entryPrice - stopLoss) * Math.abs(size), 2)
+        : null
+    const riskAmount =
+      derivedRisk ??
+      (opts.accountBalance
+        ? round((opts.accountBalance * opts.defaultRiskPercent) / 100, 2)
+        : null)
+
+    // With a P&L the outcome is exact. Without one, a close price still tells
+    // us the direction of the result — treating a closed trade as outcome-less
+    // would inflate the closed count while contributing nothing to win rate.
+    const outcome = isClosed
+      ? pnl !== null
+        ? outcomeFromPnl(pnl)
+        : outcomeFromPnl(
+            exitPrice !== null
+              ? (direction === 'long' ? exitPrice - entryPrice : entryPrice - exitPrice)
+              : null
+          )
       : null
 
     const draft: TradeDraft = {
@@ -208,13 +238,16 @@ export function parseCmcCsv(
       takeProfit,
       positionSize: size,
       riskAmount,
-      riskPercent: opts.defaultRiskPercent,
+      riskPercent:
+        derivedRisk !== null && opts.accountBalance
+          ? round((derivedRisk / opts.accountBalance) * 100, 2)
+          : opts.defaultRiskPercent,
 
       tradeDate: openedAt,
       exitDate: closedAt,
 
       status: isClosed ? 'closed' : 'open',
-      outcome: isClosed ? outcomeFromPnl(pnl) : null,
+      outcome,
       exitPrice,
       pnl,
       rMultiple: rMultiple(pnl, riskAmount),

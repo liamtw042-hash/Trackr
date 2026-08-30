@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { useAuth } from '@/store/AuthContext'
-import { useTrades, recomputeBalance } from '@/store/TradeContext'
+import { useTrades } from '@/store/TradeContext'
+import { recomputeBalance } from '@/lib/repair'
 import { migrateTrades, needsMigration, type MigrationResult } from '@/lib/migration'
 import { aiConfigured } from '@/lib/ai'
 import { cloudinaryConfigured } from '@/lib/images'
@@ -25,8 +26,14 @@ export function Settings() {
   const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null)
   const [repairing, setRepairing] = useState(false)
 
+  // Seed the form from the profile ONCE. The profile is a live Firestore
+  // listener and the balance moves every time a trade closes, so re-running
+  // this on every snapshot would wipe whatever is being typed mid-edit —
+  // including from a save triggered by this very form.
+  const seeded = useRef(false)
   useEffect(() => {
-    if (!profile) return
+    if (!profile || seeded.current) return
+    seeded.current = true
     setDisplayName(profile.displayName ?? '')
     setBalance(String(profile.accountBalance ?? ''))
     setStartBalance(String(profile.startingBalance ?? ''))

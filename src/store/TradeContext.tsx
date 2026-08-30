@@ -3,7 +3,7 @@ import {
 } from 'react'
 import {
   collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
-  serverTimestamp, increment, writeBatch, getDocs,
+  setDoc, serverTimestamp, increment, writeBatch,
 } from 'firebase/firestore'
 import { db, COL } from '@/lib/firebase'
 import { tradeFromDoc, clean } from '@/lib/serialize'
@@ -27,7 +27,7 @@ interface TradeValue {
 const Ctx = createContext<TradeValue | null>(null)
 
 export function TradeProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [trades, setTrades] = useState<Trade[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -63,15 +63,24 @@ export function TradeProvider({ children }: { children: ReactNode }) {
 
   /**
    * Keep the account balance in step with realised P&L.
+   *
+   * `setDoc(..., { merge: true })` rather than `updateDoc`: there is no
+   * registration flow, so the user document doesn't exist until Settings is
+   * saved for the first time. `updateDoc` fails outright on a missing document,
+   * which meant every balance adjustment on a fresh account was swallowed by
+   * the catch below. Merge creates it if absent and leaves other fields alone.
+   *
    * `increment` is atomic, so concurrent writes can't clobber each other.
    */
   const adjustBalance = useCallback(
     async (delta: number) => {
       if (!user || !delta || !Number.isFinite(delta)) return
       try {
-        await updateDoc(doc(db, COL.users, user.uid), {
-          accountBalance: increment(delta),
-        })
+        await setDoc(
+          doc(db, COL.users, user.uid),
+          { accountBalance: increment(delta) },
+          { merge: true }
+        )
       } catch (err) {
         console.error('[trades] balance adjust failed:', err)
       }
@@ -159,7 +168,10 @@ export function TradeProvider({ children }: { children: ReactNode }) {
     [trades, adjustBalance]
   )
 
-  const stats = useMemo(() => computeStats(trades), [trades])
+  const stats = useMemo(
+    () => computeStats(trades, profile?.startingBalance ?? 0),
+    [trades, profile?.startingBalance]
+  )
 
   const importHashes = useMemo(
     () => new Set(trades.map((t) => t.importHash).filter((h): h is string => !!h)),
@@ -180,21 +192,4 @@ export function useTrades(): TradeValue {
   const ctx = useContext(Ctx)
   if (!ctx) throw new Error('useTrades must be used inside TradeProvider')
   return ctx
-}
-
-/**
- * Recompute the account balance from scratch: starting balance plus every
- * realised P&L. Used by the Settings repair action when the running balance
- * has drifted out of step (e.g. after a manual edit in the Firestore console).
- */
-export async function recomputeBalance(userId: string, startingBalance: number): Promise<number> {
-  const snap = await getDocs(query(collection(db, COL.trades), where('userId', '==', userId)))
-  const realised = snap.docs
-    .map(tradeFromDoc)
-    .filter((t) => t.status === 'closed')
-    .reduce((sum, t) => sum + (t.pnl ?? 0), 0)
-
-  const balance = Math.round((startingBalance + realised) * 100) / 100
-  await updateDoc(doc(db, COL.users, userId), { accountBalance: balance })
-  return balance
 }

@@ -177,6 +177,7 @@ export async function migrateTrades(userId: string): Promise<MigrationResult> {
   for (let i = 0; i < pending.length; i += 400) {
     const chunk = pending.slice(i, i + 400)
     const batch = writeBatch(db)
+    let staged = 0
 
     for (const s of chunk) {
       try {
@@ -203,13 +204,25 @@ export async function migrateTrades(userId: string): Promise<MigrationResult> {
           aiAnalysis: null,
           assetClass: null,
         })
-        result.migrated++
+        staged++
       } catch (err) {
         result.errors.push(`${s.id}: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
 
-    await batch.commit()
+    // Count only after the write lands. Incrementing while staging would report
+    // rows as migrated that a failed commit never wrote — and a throw here
+    // would discard the tally for the chunks that DID commit, so the caller
+    // gets a partial result plus the error rather than an exception.
+    try {
+      await batch.commit()
+      result.migrated += staged
+    } catch (err) {
+      result.errors.push(
+        `Batch at row ${i}: ${err instanceof Error ? err.message : String(err)} — ` +
+        `${staged} trade(s) in this batch were not migrated. Re-running is safe.`
+      )
+    }
   }
 
   return result

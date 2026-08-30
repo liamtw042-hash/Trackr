@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { useAuth } from '@/store/AuthContext'
 import { useTrades } from '@/store/TradeContext'
@@ -10,7 +10,7 @@ import {
 } from '@/lib/calc'
 import { RULES, MISTAKE_LABELS, EMOTIONS, type ChartRead, type RuleState, type Trade } from '@/types'
 import {
-  Modal, Field, Input, Select, Textarea, Segmented, Spinner, Tag, Panel,
+  Modal, Field, Input, Select, Textarea, Segmented, Spinner, Tag,
 } from '@/components/ui/Primitives'
 import { ImageDrop } from '@/components/ui/ImageDrop'
 import { RulesChecklist } from './RulesChecklist'
@@ -101,6 +101,14 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
   const [reviewing, setReviewing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  // Surface the price-derived estimate in the P&L field itself rather than
+  // leaving it as a placeholder. Whatever ends up here is what moves the
+  // account balance, and for a cross pair the estimate can be materially off
+  // (it can't know the AUD conversion at close) — so it has to be a number the
+  // trader has actually seen and can overwrite with the broker's figure, never
+  // one that gets banked silently because the field looked empty.
+  const pnlTouched = useRef(false)
+
   // Reload local state whenever a different trade is opened.
   useEffect(() => {
     if (!trade) return
@@ -117,7 +125,21 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
     setEntryImage(null)
     setExitImage(null)
     setConfirmDelete(false)
+    // A stored P&L is the trader's own figure — don't let the estimator
+    // overwrite it when the trade is reopened.
+    pnlTouched.current = trade.pnl !== null
   }, [trade?.id])
+
+  useEffect(() => {
+    if (!trade || status !== 'closed' || pnlTouched.current) return
+    const est = estimatePnl({
+      direction: trade.direction,
+      entryPrice: trade.entryPrice,
+      exitPrice: num(exitPrice),
+      positionSize: trade.positionSize,
+    })
+    if (est !== null) setPnl(String(est))
+  }, [trade, status, exitPrice])
 
   const derived = useMemo(() => {
     if (!trade) return null
@@ -150,6 +172,7 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
         entryImage ? uploadImage(user.uid, 'entry', entryImage) : Promise.resolve(null),
         exitImage ? uploadImage(user.uid, 'exit', exitImage) : Promise.resolve(null),
       ])
+      const uploadFailed = (entryImage && !entryUrl) || (exitImage && !exitUrl)
 
       const isClosed = status === 'closed'
       const finalPnl = isClosed ? (derived?.pnl ?? null) : null
@@ -171,7 +194,9 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
         ...(exitUrl ? { exitScreenshotUrl: exitUrl } : {}),
       })
 
-      toast.success('Saved')
+      // A dropped screenshot must be reported — silently saying "Saved" while
+      // discarding the image is how a chart goes missing without anyone noticing.
+      toast.success(uploadFailed ? 'Saved — a screenshot failed to upload' : 'Saved')
       onClose()
     } catch (err) {
       console.error(err)
@@ -331,13 +356,17 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
                 </Field>
                 <Field
                   label="P&L $"
-                  hint={derived?.estimated != null && num(pnl) === null ? `est. ${fmtMoney(derived.estimated)}` : 'From CMC'}
+                  hint={
+                    !pnlTouched.current && derived?.estimated != null
+                      ? 'Estimated from price — replace with CMC\u2019s figure'
+                      : 'From CMC'
+                  }
                 >
                   <Input
                     mono type="number" step="any"
                     value={pnl}
-                    onChange={(e) => setPnl(e.target.value)}
-                    placeholder={derived?.estimated != null ? String(derived.estimated) : '0.00'}
+                    onChange={(e) => { pnlTouched.current = true; setPnl(e.target.value) }}
+                    placeholder="0.00"
                   />
                 </Field>
                 <Field label="Stop ended at" hint={derived?.oneR ? `1R = ${derived.oneR.toPrecision(3)}` : 'If trailed'}>
@@ -510,4 +539,3 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
   )
 }
 
-export { Panel }
