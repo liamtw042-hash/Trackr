@@ -26,26 +26,22 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="surface max-w-lg w-full">
-          <header className="section-head">
-            <h1 className="sub-label text-down">Something broke</h1>
-          </header>
-          <div className="p-4 space-y-3">
-            <p className="text-xs text-ink-200 leading-relaxed">
-              A component failed to render. Your data is untouched — this is a display
-              fault, not a write.
-            </p>
-            <pre className="text-2xs font-mono text-down bg-ink-950 surface p-2.5 overflow-x-auto whitespace-pre-wrap">
-              {error.message}
-            </pre>
-            <div className="flex gap-2">
-              <button onClick={() => this.setState({ error: null })} className="btn-ghost">
-                Try again
-              </button>
-              <button onClick={() => window.location.reload()} className="btn-primary">
-                Reload
-              </button>
-            </div>
+        <div className="surface-raised max-w-lg w-full p-5 animate-rise">
+          <h1 className="sub-label !text-down mb-3">Something broke</h1>
+          <p className="text-xs text-ink-200 leading-relaxed">
+            A component failed to render. Your data is untouched — this is a display
+            fault, not a write.
+          </p>
+          <pre className="text-2xs font-mono text-down bg-ink-975 rounded p-3 mt-4 overflow-x-auto whitespace-pre-wrap">
+            {error.message}
+          </pre>
+          <div className="flex gap-2 mt-4">
+            <button onClick={() => this.setState({ error: null })} className="btn-ghost">
+              Try again
+            </button>
+            <button onClick={() => window.location.reload()} className="btn-solid">
+              Reload
+            </button>
           </div>
         </div>
       </div>

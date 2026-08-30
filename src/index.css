@@ -1,9 +1,23 @@
-@import '@fontsource/ibm-plex-sans/400.css';
-@import '@fontsource/ibm-plex-sans/500.css';
-@import '@fontsource/ibm-plex-sans/600.css';
-@import '@fontsource/ibm-plex-mono/400.css';
-@import '@fontsource/ibm-plex-mono/500.css';
-@import '@fontsource/ibm-plex-mono/600.css';
+/* ════════════════════════════════════════════════════════════════════════
+   TYPEFACES
+
+   Instrument Sans (Rodrigo Fuenzalida / Jeremy Mickel, 2023) for everything
+   set in the sans, and Geist Mono (Vercel, 2023) for every number.
+
+   The previous pairing — IBM Plex Sans + IBM Plex Mono — is what dated the
+   app most. Plex Mono's typewriter proportions and slabbed terminals are
+   literally the shape of a terminal emulator, and Plex Sans reads as a 2017
+   corporate design language. Instrument Sans is narrower and sharper, with
+   real character in the g, R, a and the diagonal terminals, and the narrow
+   set width buys back horizontal room in a dense table. Geist Mono is low
+   contrast and geometric: it reads as instrumentation rather than a console,
+   and its digits are unambiguous at 11px, which is the size most of the
+   numbers in this app are actually read at.
+
+   Both are variable, so the whole weight range costs one file per subset.
+   ════════════════════════════════════════════════════════════════════ */
+@import '@fontsource-variable/instrument-sans/wght.css';
+@import '@fontsource-variable/geist-mono/wght.css';
 
 @tailwind base;
 @tailwind components;
@@ -12,24 +26,43 @@
 @layer base {
   :root {
     color-scheme: dark;
+
+    /* Edge tokens. A plane is separated from the one behind it by a background
+       step plus a 1px highlight on its top edge — light from above. Borders
+       are used only where an edge is genuinely information (inputs). */
+    --edge-soft: rgba(255, 255, 255, 0.045);
+    --edge: rgba(255, 255, 255, 0.07);
+    --edge-strong: rgba(255, 255, 255, 0.1);
   }
 
   html {
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   body {
     @apply bg-ink-950 text-ink-100 font-sans text-sm antialiased;
     font-variant-numeric: tabular-nums;
+    /* Instrument Sans is tightly spaced by design. At UI sizes that reads as
+       cramped, so the body carries a touch of positive tracking and display
+       sizes take it back off. */
+    letter-spacing: 0.004em;
   }
 
   .font-mono,
   input[type='number'],
   table {
     font-variant-numeric: tabular-nums;
-    font-feature-settings: 'tnum' 1, 'zero' 1;
+    font-feature-settings: 'tnum' 1, 'ss01' 1;
+    letter-spacing: -0.01em;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
   }
 
   ::selection {
@@ -37,8 +70,8 @@
   }
 
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 11px;
+    height: 11px;
   }
   ::-webkit-scrollbar-track {
     @apply bg-transparent;
@@ -47,7 +80,8 @@
     @apply bg-ink-700;
     border: 3px solid transparent;
     background-clip: content-box;
-    border-radius: 6px;
+    border-radius: 99px;
+    transition: background-color 130ms;
   }
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-ink-600;
@@ -57,8 +91,15 @@
     @apply bg-transparent;
   }
 
+  /* Focus is an outline, not a box-shadow. A box-shadow ring shares its
+     specificity with every .btn-* rule and loses to them on source order —
+     and loses outright to the inline box-shadow on OptionCard, which is the
+     control that chooses between keeping and wiping the journal. An outline
+     collides with nothing, follows the element's own border-radius, and gets
+     its dark spacer from outline-offset. */
   *:focus-visible {
-    @apply outline-none ring-1 ring-azure/70;
+    outline: 2px solid rgba(127, 180, 232, 0.9);
+    outline-offset: 2px;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -68,76 +109,137 @@
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
     }
   }
 }
 
 @layer components {
-  /* ══ CONTAINERS ═══════════════════════════════════════════════════════════
-     Three tiers, deliberately unequal. The previous build gave every panel an
-     identical border, so the border stopped carrying information and the page
-     read as a wireframe. Now most regions have NO box at all — whitespace and
-     the section label do the separating — and a background lift is reserved
-     for content that genuinely needs containment. */
+  /* ══ PLANES ══════════════════════════════════════════════════════════════════
+     Four tiers, deliberately unequal, and each one is a *plane* rather than a
+     bordered box: background step + top-edge highlight + ambient shadow. That
+     combination is what gives depth without either a glow or the soft grey
+     card shadow of a marketing template.
 
-  /* Tier 1 — no box. The default. Separation is whitespace + label. */
+       region   — no plane at all. Whitespace and the label separate it.
+       surface  — one step up. Tables, dense content, forms.
+       raised   — two steps. Popovers, sticky heads, the thing on top.
+       hero     — surface plus an accent hairline. One or two per screen. */
+
   .region {
     @apply block;
   }
 
-  /* Tier 2 — a lifted plane. For tables and anything that needs an edge to
-     sit against. No border: the background step is the edge. */
   .surface {
     @apply bg-ink-900 rounded-md;
+    box-shadow:
+      inset 0 1px 0 var(--edge-soft),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.028),
+      0 1px 2px rgba(0, 0, 0, 0.5);
   }
 
-  /* Tier 3 — the hero. One or two per screen, no more. A single hairline plus
-     a stronger lift, so it reads as the most important thing on the page. */
+  .surface-raised {
+    @apply bg-ink-850 rounded-md;
+    box-shadow:
+      inset 0 1px 0 var(--edge),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 1px 2px rgba(0, 0, 0, 0.45),
+      0 4px 12px -3px rgba(0, 0, 0, 0.45);
+  }
+
   .surface-hero {
-    @apply bg-ink-900 rounded-md ring-1 ring-inset ring-azure/15;
+    @apply bg-ink-900 rounded-md;
+    box-shadow:
+      inset 0 1px 0 rgba(166, 205, 242, 0.13),
+      inset 0 0 0 1px rgba(127, 180, 232, 0.13),
+      0 1px 2px rgba(0, 0, 0, 0.5),
+      0 8px 24px -8px rgba(0, 0, 0, 0.6);
   }
 
-  /* ══ SECTION LABEL ════════════════════════════════════════════════════════
-     This carries the load that borders used to. Small, letterspaced, quiet —
-     with real space above it, it separates regions more cleanly than a rule. */
+  /* A plane that responds to the pointer. Interactive rows and option cards. */
+  .surface-hit {
+    @apply bg-ink-900 rounded-md transition-colors duration-90;
+    box-shadow:
+      inset 0 1px 0 var(--edge-soft),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.028);
+  }
+  .surface-hit:hover {
+    @apply bg-ink-850;
+  }
+
+  /* ══ HAIRLINES ═══════════════════════════════════════════════════════════════
+     A rule that fades out at both ends. A full-bleed 1px line boxes things in;
+     a fading one separates without drawing a wall. */
+  .hairline {
+    height: 1px;
+    border: 0;
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--edge) 12%,
+      var(--edge) 88%,
+      transparent
+    );
+  }
+
+  .hairline-v {
+    width: 1px;
+    background: linear-gradient(to bottom, transparent, var(--edge) 15%, var(--edge) 85%, transparent);
+  }
+
+  /* ══ LABELS ══════════════════════════════════════════════════════════════════
+     Small caps labels carry the load borders used to. Tracking is 0.08em, not
+     the 0.11em of the previous build — wide-tracked caps past a point start
+     reading as a 2012 dashboard header rather than a legend. */
   .section-label {
-    @apply flex items-baseline gap-2.5 mb-2.5;
+    @apply flex items-baseline gap-3 mb-3;
   }
   .section-label > h2,
   .section-label > .lbl {
     @apply text-2xs font-semibold uppercase tracking-label text-azure-dim;
   }
   .section-label > .meta {
-    @apply text-2xs text-ink-500 font-mono ml-auto;
+    @apply text-2xs text-ink-500 font-mono ml-auto tabular-nums;
   }
 
-  /* A quiet in-panel heading, one step down from .section-label. */
   .sub-label {
-    @apply text-2xs font-medium uppercase tracking-label text-azure-dim;
+    @apply text-3xs font-semibold uppercase tracking-label text-azure-dim;
   }
 
   .label {
-    @apply block text-2xs font-medium uppercase tracking-label text-azure-dim mb-1.5;
+    @apply block text-3xs font-semibold uppercase tracking-label text-azure-dim mb-1.5;
   }
 
   .hint {
     @apply text-2xs text-ink-400 leading-relaxed;
   }
 
-  /* ══ INPUTS ═══════════════════════════════════════════════════════════════
-     Inputs keep their border — here it IS information: it marks the editable
-     region. Everything else giving up its border is what makes this read. */
+  /* Page title. Set in the sans at display size with the tracking pulled in —
+     this is the one place the typeface gets to show what it looks like. */
+  .page-title {
+    @apply text-display font-semibold text-ink-50 tracking-tighter;
+  }
+
+  /* ══ INPUTS ══════════════════════════════════════════════════════════════════
+     Inputs keep a border, because here it IS information: it marks the
+     editable region. Everything else giving its border up is what makes that
+     read. Focus lifts the plane slightly as well as colouring the edge. */
   .field {
     @apply w-full bg-ink-750 border border-ink-700 rounded px-2.5 py-1.5
            text-sm text-ink-50 placeholder:text-ink-500
-           transition-colors duration-100
-           hover:border-ink-600
-           focus:border-azure focus:outline-none focus:ring-0;
+           transition-[border-color,background-color,box-shadow] duration-130 ease-snap
+           hover:border-ink-600 hover:bg-ink-800
+           focus:border-azure/80 focus:bg-ink-800 focus:outline-none;
+  }
+  .field:focus {
+    box-shadow:
+      0 0 0 3px rgba(127, 180, 232, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
   }
 
   select.field {
     @apply cursor-pointer pr-7 appearance-none bg-no-repeat;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%2364748E' stroke-width='1.5'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%236B7A92' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.75L6 7.75L9 4.75'/%3E%3C/svg%3E");
     background-position: right 0.5rem center;
     background-size: 12px;
   }
@@ -155,80 +257,149 @@
     -moz-appearance: textfield;
   }
 
-  /* ══ BUTTONS ══════════════════════════════════════════════════════════════ */
+  input[type='checkbox'] {
+    @apply rounded-sm;
+  }
+
+  /* ══ BUTTONS ═════════════════════════════════════════════════════════════════
+     Every button has a top-edge highlight and depresses 1px on click. The
+     press is the smallest possible motion that still confirms the input, and
+     it is the difference between a control that feels physical and a
+     rectangle that changes colour. */
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5
-           px-3 py-1.5 text-xs font-medium rounded
-           border transition-colors duration-100
-           disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply relative inline-flex items-center justify-center gap-1.5
+           px-3 py-[7px] text-xs font-medium rounded
+           transition-[background-color,color,box-shadow,transform] duration-90 ease-snap
+           select-none
+           active:translate-y-px
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:active:translate-y-0;
   }
 
   .btn-primary {
-    @apply btn bg-azure/12 border-azure/40 text-azure-bright
-           hover:bg-azure/20 hover:border-azure/70;
+    @apply btn bg-azure/15 text-azure-bright;
+    box-shadow:
+      inset 0 1px 0 rgba(166, 205, 242, 0.18),
+      inset 0 0 0 1px rgba(127, 180, 232, 0.32);
+  }
+  .btn-primary:hover:not(:disabled) {
+    @apply bg-azure/25 text-ink-50;
+    box-shadow:
+      inset 0 1px 0 rgba(166, 205, 242, 0.3),
+      inset 0 0 0 1px rgba(127, 180, 232, 0.5);
+  }
+
+  /* The one solid fill in the system. Reserved for the single most likely
+     action on a page — currently just "Log trade". */
+  .btn-solid {
+    @apply btn bg-azure text-ink-975 font-semibold;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  .btn-solid:hover:not(:disabled) {
+    @apply bg-azure-bright;
   }
 
   .btn-ghost {
-    @apply btn bg-transparent border-ink-700 text-ink-200
-           hover:bg-ink-800 hover:border-ink-600 hover:text-ink-50;
+    @apply btn bg-ink-800/70 text-ink-200;
+    box-shadow:
+      inset 0 1px 0 var(--edge-soft),
+      inset 0 0 0 1px var(--edge);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    @apply bg-ink-750 text-ink-50;
+    box-shadow:
+      inset 0 1px 0 var(--edge),
+      inset 0 0 0 1px var(--edge-strong);
   }
 
-  /* Borderless — for tertiary actions that shouldn't add another rectangle. */
   .btn-quiet {
-    @apply btn border-transparent bg-transparent text-ink-400
-           hover:text-ink-50 hover:bg-ink-800;
+    @apply btn bg-transparent text-ink-400 hover:text-ink-50 hover:bg-ink-800;
   }
 
   .btn-danger {
-    @apply btn bg-down/10 border-down/40 text-down
-           hover:bg-down/20 hover:border-down/70;
+    @apply btn bg-down/15 text-down-bright;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 128, 133, 0.18),
+      inset 0 0 0 1px rgba(242, 85, 90, 0.35);
+  }
+  .btn-danger:hover:not(:disabled) {
+    @apply bg-down/28;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 128, 133, 0.3),
+      inset 0 0 0 1px rgba(242, 85, 90, 0.6);
   }
 
   .btn-sm {
     @apply px-2 py-1 text-2xs;
   }
 
-  /* ══ TABLES ═══════════════════════════════════════════════════════════════
-     Row separators stay — in a dense numeric table the hairline is doing real
-     work aligning the eye across columns. But they're softer now, and the
-     table has no outer border at all. */
+  .btn-lg {
+    @apply px-4 py-2 text-sm;
+  }
+
+  /* ══ TABLES ══════════════════════════════════════════════════════════════════
+     Row separators stay — in a dense numeric table a hairline does real work
+     aligning the eye across columns — but they are softer, the outer border is
+     gone entirely, and the hover is a fast background change plus an accent
+     marker in the gutter rather than a highlight over the whole row. */
   .tbl {
     @apply w-full border-collapse text-2xs;
   }
 
   .tbl thead th {
-    @apply sticky top-0 z-10 bg-ink-850 text-azure-dim
-           text-2xs font-medium uppercase tracking-label
-           text-left px-3 py-2 whitespace-nowrap;
+    @apply sticky top-0 z-10 bg-ink-850/95 text-azure-dim
+           text-3xs font-semibold uppercase tracking-label
+           text-left px-3 py-2.5 whitespace-nowrap;
+    backdrop-filter: blur(6px);
+    box-shadow: inset 0 -1px 0 var(--edge);
   }
   .tbl thead th.num {
     @apply text-right;
   }
+  /* Chrome's UA stylesheet sets text-transform:none on <button>, so a sortable
+     header rendered as a button drops out of the uppercase run and reads as a
+     different kind of header. Put it back. */
+  .tbl thead th button {
+    text-transform: inherit;
+    letter-spacing: inherit;
+    font-weight: inherit;
+  }
   .tbl thead th:first-child {
-    @apply rounded-tl-md;
+    @apply rounded-tl-md pl-4;
   }
   .tbl thead th:last-child {
-    @apply rounded-tr-md;
+    @apply rounded-tr-md pr-4;
   }
 
+  /* A border, not an inset box-shadow: WebKit and Blink do not paint
+     box-shadow on a <tr> under border-collapse: collapse, so the separators
+     would vanish in Chrome and Safari while looking fine in Firefox. */
   .tbl tbody tr {
-    @apply border-b border-ink-800/60 transition-colors duration-75;
+    @apply border-b transition-colors duration-70;
+    border-color: rgba(255, 255, 255, 0.04);
   }
   .tbl tbody tr:last-child {
     @apply border-b-0;
   }
   .tbl tbody tr:hover {
-    @apply bg-ink-850/70;
+    @apply bg-ink-850;
   }
 
   .tbl tbody td {
-    @apply px-3 py-2 whitespace-nowrap align-middle;
+    @apply px-3 py-[9px] whitespace-nowrap align-middle;
+  }
+  .tbl tbody td:first-child {
+    @apply pl-4;
+  }
+  .tbl tbody td:last-child {
+    @apply pr-4;
   }
   .tbl tbody td.num {
     @apply text-right font-mono;
   }
 
-  /* ══ VALUES ═══════════════════════════════════════════════════════════════ */
+  /* ══ VALUES ══════════════════════════════════════════════════════════════════ */
   .val-up {
     @apply text-up;
   }
@@ -239,31 +410,102 @@
     @apply text-ink-400;
   }
 
-  /* ══ TAGS ═════════════════════════════════════════════════════════════════ */
+  /* ══ TAGS ════════════════════════════════════════════════════════════════════ */
   .tag {
-    @apply inline-flex items-center px-1.5 py-px text-2xs font-medium rounded-sm
+    @apply inline-flex items-center px-[5px] py-px text-3xs font-semibold rounded-sm
            uppercase tracking-label;
   }
   .tag-up {
     @apply tag bg-up-wash text-up;
+    box-shadow: inset 0 0 0 1px rgba(47, 206, 114, 0.22);
   }
   .tag-down {
     @apply tag bg-down-wash text-down;
+    box-shadow: inset 0 0 0 1px rgba(242, 85, 90, 0.22);
   }
   .tag-neutral {
     @apply tag bg-ink-800 text-ink-300;
+    box-shadow: inset 0 0 0 1px var(--edge-soft);
   }
   .tag-azure {
     @apply tag bg-azure-wash text-azure-bright;
+    box-shadow: inset 0 0 0 1px rgba(127, 180, 232, 0.22);
   }
 
-  /* ══ MISC ═════════════════════════════════════════════════════════════════ */
+  /* ══ MISC ════════════════════════════════════════════════════════════════════ */
+  /* A sweep rather than a pulse: loading reads as progress in one direction
+     instead of the whole block blinking. */
   .skel {
-    @apply bg-ink-850 rounded animate-pulse;
+    @apply rounded-md animate-sweep;
+    background-image: linear-gradient(
+      100deg,
+      #0c1017 20%,
+      #171d28 38%,
+      #0c1017 56%
+    );
+    background-size: 200% 100%;
   }
 
-  /* A left rule, used instead of a box to mark a callout or a quote. */
+  /* A left rule instead of a box, for a callout or an aside. */
   .edge-note {
-    @apply border-l-2 border-azure/60 pl-3;
+    @apply border-l-2 border-azure/50 pl-3.5;
+  }
+  .edge-note-warn {
+    @apply border-l-2 border-down/60 pl-3.5;
+  }
+
+  /* A row of figures. The caller asks for N columns, which is right on a desk
+     monitor and wrong on a phone — so N only applies from md up. */
+  .stat-row {
+    @apply grid gap-x-8 gap-y-6;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (min-width: 768px) {
+    .stat-row {
+      grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+    }
+  }
+
+  /* Row of key/value inside a plane. Used instead of a nested bordered box. */
+  .kv {
+    @apply flex items-baseline justify-between gap-4 py-[7px];
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.032);
+  }
+  .kv:last-child {
+    box-shadow: none;
+  }
+
+  /* Keyboard hint. */
+  .kbd {
+    @apply inline-flex items-center justify-center min-w-[16px] h-4 px-1
+           rounded-sm bg-ink-800 text-ink-400 font-mono text-3xs leading-none;
+    box-shadow: inset 0 0 0 1px var(--edge), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  }
+}
+
+@layer utilities {
+  /* Stagger helper — panels enter in reading order rather than all at once.
+     Small delays only; anything past ~120ms reads as the page being slow. */
+  .stagger > * {
+    animation: riseSm 160ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+  .stagger > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .stagger > *:nth-child(2) {
+    animation-delay: 30ms;
+  }
+  .stagger > *:nth-child(3) {
+    animation-delay: 60ms;
+  }
+  .stagger > *:nth-child(4) {
+    animation-delay: 90ms;
+  }
+  .stagger > *:nth-child(n + 5) {
+    animation-delay: 110ms;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }

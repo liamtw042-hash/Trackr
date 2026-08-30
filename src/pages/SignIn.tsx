@@ -43,16 +43,16 @@ export function SignIn() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-xs">
-        <div className="flex items-center gap-2 mb-6">
-          <svg className="w-4 h-4 text-azure" viewBox="0 0 16 16" fill="none">
+        <div className="flex items-center gap-2 mb-6 animate-rise-sm">
+          <svg className="w-[18px] h-[18px] text-azure" viewBox="0 0 16 16" fill="none">
             <path d="M1 12.5L4.5 7L8 9.5L11 3.5L15 6" stroke="currentColor" strokeWidth="1.5"
-              strokeLinecap="square" />
+              strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span className="font-semibold text-ink-50 tracking-tight">Trackr</span>
+          <span className="font-semibold text-ink-50 tracking-tighter text-[15px]">Trackr</span>
         </div>
 
-        <form onSubmit={submit} className="surface">
-          <div className="p-4 space-y-3">
+        <form onSubmit={submit} className="surface-raised animate-rise">
+          <div className="p-5 space-y-4">
             <Field label="Email">
               <Input
                 type="email"
@@ -72,7 +72,7 @@ export function SignIn() {
                 required
               />
             </Field>
-            <button type="submit" disabled={busy} className="btn-primary w-full">
+            <button type="submit" disabled={busy} className="btn-solid w-full">
               {busy ? <><Spinner /> Signing in…</> : 'Sign in'}
             </button>
           </div>

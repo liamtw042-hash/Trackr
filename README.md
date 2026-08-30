@@ -151,10 +151,49 @@ five, and pattern analysis won't run at all under 20 closed trades.
 
 ---
 
+## Backing up, exporting and resetting
+
+All of it lives on the **Data** page — its own item in the top nav, between ASX
+and Settings. Nothing here is buried in a settings panel, because backing up a
+journal is a routine act rather than a preference.
+
+**Export** is the first thing on the page, and everything below it is safer to
+reach having been there.
+
+- **JSON** — the complete backup. Every field on every trade, plus holdings and
+  your profile. This is what Restore reads.
+- **CSV** — trades only, one row each, flattened for a spreadsheet. Rules become
+  one column per rule (`followed` / `broken` / blank). Cannot be restored from.
+
+Both download straight to your machine; nothing is uploaded anywhere.
+
+**Import CSV** and **Restore from backup** are both additive and neither can
+lose anything. Restore reuses the original document ids, so restoring the same
+file twice overwrites rather than duplicating.
+
+**Reset** sits below a rule, at the bottom, and is the only place red appears.
+Two options, described in full rather than toggled:
+
+- **Reset the balance, keep the trades** — sets the starting and current balance
+  to a new figure and redraws the equity curve from it. Nothing is deleted.
+- **Wipe everything and start again** — permanently deletes every trade (and,
+  optionally, ASX holdings), then sets the balance.
+
+The destructive option cannot be run until a backup exists — either taken on
+this page in the current session, or explicitly confirmed as held elsewhere —
+and then requires the exact number of trades about to be deleted typed back.
+The counts are shown before the confirmation, so if the number is not the one
+you expected, that is the point at which you stop. Firestore has no undo.
+
+Screenshots already uploaded to Cloudinary are not removed by a reset — it
+deletes the journal, not the image host.
+
+---
+
 ## Migrating from the previous version
 
-Open **Settings**. If any trades are still on the old schema, a migration panel
-appears. It:
+Open **Settings → Maintenance**. If any trades are still on the old schema, a
+migration panel appears. It:
 
 - maps every v1 field to its v2 equivalent
 - matches old free-text checklist entries to the five fixed rule keys by keyword
@@ -176,6 +215,11 @@ drifts out of step with your trade history.
 React 18 · TypeScript · Vite · Tailwind · Firebase Auth + Firestore ·
 Cloudinary · Anthropic API (`claude-opus-5`) · Recharts · Vercel
 
+Type is Instrument Sans for everything set in the sans and Geist Mono for every
+number, both as variable fonts served from the bundle. The design tokens —
+palette, elevation, type scale, motion curves — live in `tailwind.config.js`,
+and the plane/label/control classes built on them in `src/index.css`.
+
 The model is a single constant at the top of `src/lib/ai.ts` if you want to
 change it — pricing at [anthropic.com/pricing](https://www.anthropic.com/pricing).
 
@@ -184,12 +228,13 @@ src/
   lib/          calc, ai, csv, images, firebase, migration, serialize
   store/        Auth / Trade / Holdings contexts
   components/   ui, trade, charts, layout, ai
-  pages/        Desk, Trades, Analysis, Portfolio, Settings, SignIn
+  pages/        Desk, Trades, Analysis, Portfolio, Data, Settings, SignIn
   types/        the whole data model
 api/quotes.ts   ASX price proxy (Vercel function)
 ```
 
 ```bash
 npm run typecheck   # tsc, no emit
+npm run lint        # eslint, zero warnings tolerated
 npm run build       # typecheck + production build
 ```
