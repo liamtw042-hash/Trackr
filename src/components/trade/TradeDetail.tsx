@@ -6,7 +6,7 @@ import { readChart, reviewTrade, aiConfigured } from '@/lib/ai'
 import { uploadImage } from '@/lib/images'
 import {
   estimatePnl, outcomeFromPnl, rMultiple, num, fmtMoney, fmtR, fmtDateTime,
-  fmtPrice, valueClass, stopDistance,
+  fmtPrice, valueClass, stopDistance, riskPercentFor, round,
 } from '@/lib/calc'
 import { RULES, MISTAKE_LABELS, EMOTIONS, type ChartRead, type RuleState, type Trade } from '@/types'
 import {
@@ -30,6 +30,77 @@ function localFromIso(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return ''
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
   return d.toISOString().slice(0, 16)
+}
+
+/**
+ * Risk in dollars, editable.
+ *
+ * It used to be derived and fixed: stop distance x position size. That is only
+ * the AUD risk when the pair is quoted in AUD (EUR/AUD, GBP/AUD). On any other
+ * cross the product is in the quote currency, so a JPY pair comes out about
+ * 112x too big and its R-multiple lands near zero. R is the primary metric in
+ * this app, so a wrong risk quietly corrupts expectancy, the rule comparisons
+ * and the R distribution all at once.
+ *
+ * Rather than guess an FX rate the app does not have, the figure is editable
+ * and the derived one is offered as a starting point.
+ */
+function RiskField({
+  value, onChange, quoteRisk, suspect, ticker, balance,
+}: {
+  value: string
+  onChange: (v: string) => void
+  quoteRisk: number | null
+  suspect: boolean
+  ticker: string
+  balance: number | null
+}) {
+  const v = num(value)
+  const pct = balance ? riskPercentFor(balance, v) : null
+  const quote = ticker.includes('/') ? ticker.split('/')[1] : null
+
+  return (
+    <div>
+      <Field
+        label="Risk $"
+        hint={
+          <>
+            What one R is worth. Everything R-based is measured against it.
+            {pct !== null && (
+              <> Currently <span className="font-mono text-azure-bright">{pct}%</span> of balance.</>
+            )}
+          </>
+        }
+      >
+        <Input
+          mono type="number" step="any"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="0.00"
+          className={suspect ? '!border-down' : ''}
+        />
+      </Field>
+
+      {suspect && (
+        <div className="edge-note-warn text-2xs text-ink-200 leading-relaxed mt-2 py-0.5 animate-rise-sm">
+          This looks like the raw stop distance times units, which for{' '}
+          <span className="font-mono">{ticker}</span> is in{' '}
+          <span className="font-mono">{quote ?? 'the quote currency'}</span>, not AUD. Convert it
+          before trusting the R.
+        </div>
+      )}
+
+      {quoteRisk !== null && v !== null && Math.abs(v - quoteRisk) > 0.01 && (
+        <button
+          type="button"
+          onClick={() => onChange(String(quoteRisk))}
+          className="btn-quiet btn-sm mt-1.5"
+        >
+          Reset to stop x units ({quoteRisk.toLocaleString()})
+        </button>
+      )}
+    </div>
+  )
 }
 
 function ChartReadPanel({ read, phase }: { read: ChartRead; phase: string }) {
@@ -93,6 +164,7 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
   const [exitDate, setExitDate] = useState('')
   const [pnl, setPnl] = useState('')
   const [finalStop, setFinalStop] = useState('')
+  const [risk, setRisk] = useState('')
   const [entryImage, setEntryImage] = useState<string | null>(null)
   const [exitImage, setExitImage] = useState<string | null>(null)
 
@@ -122,6 +194,7 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
     setExitDate(localFromIso(trade.exitDate))
     setPnl(trade.pnl !== null ? String(trade.pnl) : '')
     setFinalStop(trade.finalStopLoss !== null ? String(trade.finalStopLoss) : '')
+    setRisk(trade.riskAmount !== null ? String(trade.riskAmount) : '')
     setEntryImage(null)
     setExitImage(null)
     setConfirmDelete(false)
@@ -151,10 +224,30 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
       positionSize: trade.positionSize,
     })
     const finalPnl = typed ?? estimated
+    const editedRisk = num(risk)
+
+    // What the app would derive from the stop, for comparison. This is stop
+    // distance x units in the QUOTE currency, which is only the AUD risk when
+    // the pair is quoted in AUD. On a JPY cross it is out by the JPY/AUD rate,
+    // roughly 112x, which is why the figure has to be editable at all.
+    const quoteRisk =
+      trade.stopLoss !== null && trade.entryPrice !== null && trade.positionSize !== null
+        ? round(Math.abs(trade.entryPrice - trade.stopLoss) * Math.abs(trade.positionSize), 2)
+        : null
+
     return {
       estimated,
       pnl: finalPnl,
-      r: rMultiple(finalPnl, trade.riskAmount),
+      risk: editedRisk,
+      quoteRisk,
+      // A cross pair gives itself away: the derived figure is a different order
+      // of magnitude from the money that actually moved.
+      suspect:
+        quoteRisk !== null && editedRisk !== null &&
+        Math.abs(editedRisk - quoteRisk) < 0.01 &&
+        finalPnl !== null && Math.abs(finalPnl) > 0 &&
+        (quoteRisk / Math.abs(finalPnl) > 5 || Math.abs(finalPnl) / quoteRisk > 5),
+      r: rMultiple(finalPnl, editedRisk),
       outcome: outcomeFromPnl(finalPnl),
       oneR: stopDistance({
         direction: trade.direction,
@@ -162,7 +255,7 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
         stopLoss: trade.stopLoss,
       }),
     }
-  }, [trade, pnl, exitPrice])
+  }, [trade, pnl, exitPrice, risk])
 
   const save = useCallback(async () => {
     if (!trade || !user) return
@@ -188,7 +281,13 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
         exitPrice: isClosed ? num(exitPrice) : null,
         exitDate: isClosed ? (exitDate || new Date().toISOString()) : null,
         pnl: finalPnl,
-        rMultiple: isClosed ? rMultiple(finalPnl, trade.riskAmount) : null,
+        riskAmount: num(risk),
+        // Keep the percentage in step with an edited dollar risk, otherwise the
+        // AI context and the backup export keep quoting the old one.
+        ...(num(risk) !== null && profile?.accountBalance
+          ? { riskPercent: riskPercentFor(profile.accountBalance, num(risk)) }
+          : {}),
+        rMultiple: isClosed ? rMultiple(finalPnl, num(risk)) : null,
         finalStopLoss: num(finalStop),
         ...(entryUrl ? { entryScreenshotUrl: entryUrl } : {}),
         ...(exitUrl ? { exitScreenshotUrl: exitUrl } : {}),
@@ -205,8 +304,8 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
       setSaving(false)
     }
   }, [
-    trade, user, rules, notes, setupType, mistake, emotion, status, exitPrice,
-    exitDate, finalStop, derived, entryImage, exitImage, updateTrade, onClose,
+    trade, user, profile, rules, notes, setupType, mistake, emotion, status, exitPrice,
+    exitDate, finalStop, risk, derived, entryImage, exitImage, updateTrade, onClose,
   ])
 
   const runChartRead = async (phase: 'entry' | 'exit') => {
@@ -337,6 +436,15 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
             />
           </div>
 
+          <RiskField
+            value={risk}
+            onChange={setRisk}
+            quoteRisk={derived?.quoteRisk ?? null}
+            suspect={derived?.suspect ?? false}
+            ticker={trade.ticker}
+            balance={profile?.accountBalance ?? null}
+          />
+
           {status === 'closed' && (
             <div className="space-y-2 animate-rise">
               <div className="grid grid-cols-2 gap-2">
@@ -358,7 +466,7 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
                   label="P&L $"
                   hint={
                     !pnlTouched.current && derived?.estimated != null
-                      ? 'Estimated from price — replace with CMC\u2019s figure'
+                      ? 'Estimated from price — replace with CMC’s figure'
                       : 'From CMC'
                   }
                 >
@@ -379,8 +487,8 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
               </div>
 
               {derived?.pnl != null && (
-                <div className={`flex items-center justify-between px-3 py-2 border ${
-                  derived.pnl >= 0 ? 'bg-up-wash rounded-md' : 'bg-down-wash rounded-md'
+                <div className={`flex items-center justify-between px-3 py-2 rounded-md ${
+                  derived.pnl >= 0 ? 'bg-up-wash' : 'bg-down-wash'
                 }`}>
                   <span className="text-2xs uppercase tracking-label text-ink-300">Result</span>
                   <div className="flex items-center gap-4 font-mono">
@@ -528,7 +636,7 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
           )}
 
           {trade.mistake && (
-            <div className="bg-down-wash rounded-md bg-down-wash px-2.5 py-2">
+            <div className="bg-down-wash rounded-md px-2.5 py-2">
               <span className="text-2xs uppercase tracking-label text-down">Flagged mistake</span>
               <p className="text-xs text-ink-100 mt-0.5">{MISTAKE_LABELS[trade.mistake] ?? trade.mistake}</p>
             </div>
@@ -538,4 +646,3 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
     </Modal>
   )
 }
-

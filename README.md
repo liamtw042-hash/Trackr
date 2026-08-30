@@ -143,6 +143,18 @@ shown as an estimate. **R-multiple is the primary metric throughout** — `pnl �
 risk` is exact regardless of quote currency, which is why the dashboard leads
 with expectancy in R rather than dollars.
 
+**Risk per trade has the same currency problem, and it is editable because of
+it.** Risk is derived as stop distance × position size, which lands in the
+*quote* currency. That is the AUD risk only for a pair quoted in AUD
+(EUR/AUD, GBP/AUD). On a JPY cross it comes out roughly 112× too big, and
+since R is `pnl ÷ risk`, the R-multiple collapses to near zero and quietly
+corrupts expectancy, the rule comparisons and the R distribution together.
+The app cannot fix this on its own without an FX rate it does not have, so
+**Risk $ is an editable field on every trade** (open it from the trades table)
+and the figure is flagged in red when it looks like an unconverted quote-currency
+amount. A CSV import can also carry a **Risk $** column, already in AUD, which
+overrides the estimate.
+
 **Sample sizes are shown everywhere, and small ones are visibly dimmed.** A
 100% win rate on three trades is noise, and the UI is built to stop that
 reading as an edge: breakdown rows under five trades are dimmed, rule
