@@ -10,6 +10,7 @@ import { CsvImport } from '@/components/trade/CsvImport'
 import { AskDrawer } from '@/components/ai/AskDrawer'
 import { Kbd } from '@/components/ui/Primitives'
 import { CommandPalette } from '@/components/ui/CommandPalette'
+import { Shortcuts } from '@/components/ui/Shortcuts'
 import { TradeDetail } from '@/components/trade/TradeDetail'
 import type { Trade } from '@/types'
 
@@ -80,6 +81,7 @@ export function Shell() {
   const [csvOpen, setCsvOpen] = useState(false)
   const [askOpen, setAskOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [keysOpen, setKeysOpen] = useState(false)
   const [paletteTrade, setPaletteTrade] = useState<Trade | null>(null)
   const [pastedTicket, setPastedTicket] = useState<File | null>(null)
   const location = useLocation()
@@ -122,6 +124,9 @@ export function Shell() {
       } else if (e.key === '/') {
         e.preventDefault()
         setAskOpen(true)
+      } else if (e.key === '?') {
+        e.preventDefault()
+        setKeysOpen(true)
       }
     }
     window.addEventListener('keydown', handler)
@@ -216,6 +221,15 @@ export function Shell() {
           </button>
 
           <button
+            onClick={() => setKeysOpen(true)}
+            className="hidden md:grid h-8 w-8 place-items-center rounded text-ink-500
+                       hover:text-ink-50 hover:bg-ink-900 transition-colors duration-90"
+            title="Keyboard shortcuts  ( ? )"
+          >
+            <Kbd>?</Kbd>
+          </button>
+
+          <button
             onClick={() => setAskOpen(true)}
             className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded text-xs text-ink-400
                        hover:text-ink-50 hover:bg-ink-900 transition-colors duration-90"
@@ -255,6 +269,8 @@ export function Shell() {
       >
         <Outlet context={{ openLogTrade, openCsvImport }} />
       </main>
+
+      <Shortcuts open={keysOpen} onClose={() => setKeysOpen(false)} />
 
       <CommandPalette
         open={paletteOpen}

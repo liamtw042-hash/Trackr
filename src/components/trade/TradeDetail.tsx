@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/Primitives'
 import { ImageDrop } from '@/components/ui/ImageDrop'
 import { RulesChecklist } from './RulesChecklist'
+import { SimilarTrades } from './SimilarTrades'
 import { MISTAKES } from '@/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -653,6 +654,8 @@ export function TradeDetail({ trade, onClose }: { trade: Trade | null; onClose: 
               </p>
             )}
           </div>
+
+          <SimilarTrades trade={trade} />
 
           {trade.ticketScreenshotUrl && (
             <div>

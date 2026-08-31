@@ -5,12 +5,15 @@ import { useTrades } from '@/store/TradeContext'
 import { findPatterns, aiConfigured, MIN_TRADES_FOR_PATTERNS, type PatternReport } from '@/lib/ai'
 import { groupPerformance, fmtR, fmtMoney, fmtPct, round, valueClass } from '@/lib/calc'
 import { afterLoss, holdTimes, fmtDuration, estimateEdge } from '@/lib/edge'
+import { sessionOf } from '@/lib/market'
 import { RULES, MISTAKE_LABELS, EMOTIONS, ruleScore } from '@/types'
 import { EquityChart, RDistribution, PerformanceBars } from '@/components/charts/Charts'
 import { Section, Stat, StatRow, Spinner, Empty, Tag } from '@/components/ui/Primitives'
 import { Compare } from '@/components/analysis/Compare'
+import { Survival } from '@/components/analysis/Survival'
 import { MonthGrid } from '@/components/analysis/MonthGrid'
 import { Underwater } from '@/components/charts/Underwater'
+import { RollingR } from '@/components/charts/RollingR'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -44,6 +47,10 @@ export function Analysis() {
       const e = EMOTIONS.find((x) => x.value === t.emotion)
       return e ? e.label : null
     }),
+    [trades]
+  )
+  const bySession = useMemo(
+    () => groupPerformance(trades, (t) => sessionOf(t.tradeDate)),
     [trades]
   )
 
@@ -147,7 +154,16 @@ export function Analysis() {
         <Underwater trades={trades} startingBalance={profile?.startingBalance ?? 0} height={160} />
       </Section>
 
+      <Section
+        title="Rolling expectancy"
+        action={<span className="text-2xs text-ink-500">last 10 against all time</span>}
+      >
+        <RollingR trades={trades} window={10} height={170} />
+      </Section>
+
       <MonthGrid trades={trades} />
+
+      <Survival trades={trades} balance={profile?.accountBalance ?? 0} />
 
       {/* ── Rule impact — the core question ── */}
       <Section
@@ -233,6 +249,12 @@ export function Analysis() {
         <Section title="By pair"><PerformanceBars rows={byPair} metric={metric} /></Section>
         <Section title="By direction"><PerformanceBars rows={byDirection} metric={metric} /></Section>
         <Section title="By day"><PerformanceBars rows={byDay} metric={metric} /></Section>
+        <Section
+          title="By session"
+          action={<span className="text-2xs text-ink-500">Sydney clock</span>}
+        >
+          <PerformanceBars rows={bySession} metric={metric} />
+        </Section>
         <Section title="By setup"><PerformanceBars rows={bySetup} metric={metric} /></Section>
         <Section title="By state at entry"><PerformanceBars rows={byEmotion} metric={metric} /></Section>
 

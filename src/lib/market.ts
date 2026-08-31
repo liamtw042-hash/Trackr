@@ -129,3 +129,28 @@ export function freshestAsOf(asOfs: (string | null | undefined)[]): string | nul
   }
   return best
 }
+
+// ─── Trading sessions ────────────────────────────────────────────────────────────
+
+export type TradingSession = 'Asia' | 'London' | 'New York'
+
+/**
+ * Which session a trade was opened in, bucketed by Sydney wall-clock time
+ * because that is where the trading happens.
+ *
+ * Deliberately three coarse buckets a trader recognises rather than 24 hourly
+ * ones that never accumulate enough trades to compare. And deliberately not
+ * `new Date().getHours()`, which is the *browser's* timezone — the same trade
+ * would fall in a different session depending on where the laptop is, which is
+ * the kind of bug that silently rewrites an analysis on holiday.
+ */
+export function sessionOf(iso: string | null | undefined): TradingSession | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+
+  const h = Math.floor(sydney(d).minutes / 60)
+  if (h >= 8 && h < 16) return 'Asia'
+  if (h >= 16) return 'London'
+  return 'New York'
+}

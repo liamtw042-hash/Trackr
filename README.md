@@ -106,6 +106,44 @@ calendar rots — but a holiday has no quotes dated today, so the marker degrade
 to closed on its own, and the column relabels itself from "Today" to the day the
 prices actually come from.
 
+**Sizing and survival** (Analysis) — the Desk answers whether there is an edge;
+this answers whether the size it is traded at can survive it, which is a
+different question. Four thousand simulated runs per row, each drawing 100
+trades at random from your own closed results, report the chance of a 20 / 35 /
+50% drawdown at half your usual size, at it, and at double. Equity compounds in
+the model, because risking 1% means 1% of the *current* balance and modelling it
+additively is the classic way to make ruin look impossible. It also prints the
+growth-optimal (Kelly) fraction as a number to understand rather than trade:
+Kelly assumes the distribution is known, yours is estimated from a few dozen
+trades, and an over-estimated edge produces an over-sized bet whose losses
+compound. Assumes the next trade looks like the last ones and that trades are
+independent — real trading breaks both, so it is the optimistic case.
+
+**Rolling expectancy** (Analysis) — the trailing ten-trade mean R against the
+all-time mean. Both lines, always: the window alone invites reading noise as a
+trend, since one +3R winner lifts a ten-trade window by 0.3R and holds it there
+for ten trades. Drawn as straight segments rather than a spline, because the
+mean changes at a close and nowhere else.
+
+**Expected losing runs** (Desk) — four losses in a row feels like evidence the
+strategy has broken. At a 45% win rate over 29 trades it is close to the single
+most likely longest run there is. The Discipline panel now prints the worst run
+you should *expect* beside the worst you have had, and prices the current one:
+"at your win rate a run this long turns up in 62% of 29-trade stretches". Exact,
+by dynamic programming over the run length, rather than the usual logarithmic
+approximation — which is worst exactly where it gets read, on short samples.
+
+**Your record here** (trade detail) — the screen where a trade gets judged used
+to be the one screen with no history on it. It now shows your record on that
+pair and on that setup, with the last five results as pips. Two groupings
+because they answer different questions: the pair says whether the instrument
+has ever worked for you, the setup says whether the idea has. The trade being
+viewed is excluded from its own comparison.
+
+**`?`** — the shortcut sheet. The app had four keyboard paths and no way to
+discover any of them, which makes them the same as unbuilt — including the
+best one, which is pasting a screenshot on any page.
+
 **Sortable tables** — click any column head on Trades or ASX. Missing values
 always sink, whichever way the column points: sorting by P&L should put your
 biggest winner first, not eleven open positions that have no P&L yet. A null is
@@ -334,7 +372,7 @@ change it — pricing at [anthropic.com/pricing](https://www.anthropic.com/prici
 
 ```
 src/
-  lib/          calc, fx, edge, insight, market, ai, csv, images, firebase, migration, serialize
+  lib/          calc, fx, edge, insight, risk, market, ai, csv, images, firebase, migration, serialize
   hooks/        useQuotes, useTableSort
   store/        Auth / Trade / Holdings contexts
   components/   ui, trade, charts, analysis, desk, data, layout, ai
@@ -342,6 +380,11 @@ src/
   types/        the whole data model
 api/quotes.ts   ASX price proxy (Vercel function)
 ```
+
+`risk.ts` resamples the same way and for the same reason: every closed-form
+risk-of-ruin formula assumes a distribution much tidier than a trailed stop
+produces, and is wrong in the flattering direction. It shares `edge.ts`'s fixed
+seed, so no figure in the app drifts between renders.
 
 `edge.ts` holds the only confidence-interval implementation in the codebase, on
 purpose. It is a seeded percentile bootstrap rather than a t-interval, because

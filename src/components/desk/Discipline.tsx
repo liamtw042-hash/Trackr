@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { discipline } from '@/lib/insight'
+import { streakExpectation } from '@/lib/risk'
 import { RULES } from '@/types'
 import { Section } from '@/components/ui/Primitives'
 import type { Trade } from '@/types'
@@ -14,6 +15,12 @@ import type { Trade } from '@/types'
 //
 // "Trades since a rule break" is the figure that carries weight, because unlike
 // win rate it is entirely under his control.
+//
+// The run is also priced. A four-loss streak feels like evidence the strategy
+// has stopped working; at a 45% win rate over 29 trades it is the single most
+// likely longest run there is. Showing the expected run beside the actual one
+// is the cheapest way to stop a normal streak being read as a broken system —
+// and, in the other direction, to notice when a run really is out of range.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Pip({ won }: { won: boolean }) {
@@ -45,6 +52,11 @@ export function Discipline({ trades }: { trades: Trade[] }) {
   const breakRule = d.lastBreakRule
     ? RULES.find((r) => r.key === d.lastBreakRule)?.label ?? d.lastBreakRule
     : null
+
+  // Priced against his own win rate, over his own number of trades.
+  const streak = streakExpectation(d.wins, d.losses, d.decided)
+  const losing = d.current < 0 ? Math.abs(d.current) : 0
+  const runOdds = streak.meaningful && losing >= 2 ? streak.probabilityOf(losing) : null
 
   return (
     <Section title="Discipline">
@@ -89,16 +101,42 @@ export function Discipline({ trades }: { trades: Trade[] }) {
             <div className="flex items-end gap-[3px]" title="Most recent 12 results, oldest first">
               {recent.map((t) => <Pip key={t.id} won={t.outcome === 'win'} />)}
             </div>
-            <div className="text-3xs text-ink-600 mt-1.5">last {recent.length}, oldest first</div>
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 mt-1.5">
+              <span className="text-3xs text-ink-600">last {recent.length}, oldest first</span>
+              {streak.meaningful && (
+                <span className="text-3xs text-ink-500">
+                  worst run to expect over {d.decided} trades:{' '}
+                  <span className="font-mono text-ink-300">{streak.expectedLongest}</span>
+                  {d.longestLoss > 0 && (
+                    <>
+                      {' '}· yours <span className={`font-mono ${
+                        d.longestLoss > streak.expectedLongest + 1.5 ? 'text-down' : 'text-ink-300'
+                      }`}>{d.longestLoss}</span>
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
           </div>
         )}
 
         <p className="text-2xs text-ink-300 leading-relaxed">
           {onRun && d.current < 0 ? (
-            <span className="text-down">
-              {Math.abs(d.current)} losses in a row. Nothing about that predicts the next
-              trade — but it is the point at which sizing up to “make it back” starts to
-              look reasonable, and that is the actual risk.
+            <span className={runOdds !== null && runOdds < 0.2 ? 'text-down' : undefined}>
+              {Math.abs(d.current)} losses in a row.
+              {runOdds !== null && (
+                <>
+                  {' '}At your win rate a run this long turns up in{' '}
+                  <span className="font-mono">{Math.round(runOdds * 100)}%</span> of
+                  {' '}{d.decided}-trade stretches, so it is{' '}
+                  {runOdds >= 0.35 ? 'thoroughly ordinary'
+                    : runOdds >= 0.15 ? 'well inside normal'
+                    : 'on the unusual side'}.
+                </>
+              )}{' '}
+              Nothing about it predicts the next trade — but it is the point at which
+              sizing up to “make it back” starts to look reasonable, and that is the
+              actual risk.
             </span>
           ) : onRun && d.current > 0 ? (
             <>

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { fmtR, fmtPct, round } from '@/lib/calc'
 import { compareGroups, estimateEdge, type GroupComparison } from '@/lib/edge'
+import { sessionOf } from '@/lib/market'
 import { Section } from '@/components/ui/Primitives'
 import type { Trade } from '@/types'
 
@@ -26,20 +27,9 @@ type Axis = 'setup' | 'direction' | 'session'
 const AXES: { key: Axis; label: string; of: (t: Trade) => string | null }[] = [
   { key: 'setup', label: 'Setup', of: (t) => t.setupType.trim() || null },
   { key: 'direction', label: 'Direction', of: (t) => (t.direction === 'long' ? 'Long' : 'Short') },
-  {
-    key: 'session',
-    label: 'Session',
-    of: (t) => {
-      const d = new Date(t.tradeDate)
-      if (Number.isNaN(d.getTime())) return null
-      const h = d.getHours()
-      // Sydney local hours. Deliberately coarse — three buckets a trader
-      // recognises beat 24 that never accumulate enough trades to compare.
-      if (h >= 8 && h < 16) return 'Asia'
-      if (h >= 16 && h < 24) return 'London'
-      return 'New York'
-    },
-  },
+  // Bucketing lives in market.ts, shared with the Analysis breakdown, so the
+  // two can never disagree about which session a trade was in.
+  { key: 'session', label: 'Session', of: (t) => sessionOf(t.tradeDate) },
 ]
 
 export function Compare({ trades }: { trades: Trade[] }) {

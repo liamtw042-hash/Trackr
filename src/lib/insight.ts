@@ -11,7 +11,7 @@ import { currenciesOf, ACCOUNT_CURRENCY } from './fx'
 // technically contains but no human would extract by eye.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Currency exposure ────────────────────────────────────────────────────────────
+// ─── Currency exposure ─────────────────────────────────────────────────────────────────
 
 export interface CurrencyLeg {
   currency: string
@@ -94,7 +94,7 @@ export function exposure(trades: Trade[]): Exposure {
   }
 }
 
-// ─── Streaks and discipline ──────────────────────────────────────────────────────
+// ─── Streaks and discipline ────────────────────────────────────────────────────────
 
 export interface Discipline {
   /** Positive = consecutive wins, negative = consecutive losses. */
@@ -107,6 +107,11 @@ export interface Discipline {
   breaks: number
   lastBreakRule: string | null
   n: number
+  /** Wins and losses only. A breakeven is not a result, so it is not counted. */
+  wins: number
+  losses: number
+  /** wins + losses — the sample any win-rate arithmetic is entitled to use. */
+  decided: number
 }
 
 /**
@@ -128,11 +133,15 @@ export function discipline(trades: Trade[]): Discipline {
   let longestWin = 0
   let longestLoss = 0
   let run = 0
+  let wins = 0
+  let losses = 0
 
   for (const t of chron) {
     // Breakevens neither extend nor break a run — they are not a result.
     if (t.outcome === 'breakeven' || t.outcome === null) continue
     const win = t.outcome === 'win'
+    if (win) wins++
+    else losses++
     run = win ? (run > 0 ? run + 1 : 1) : run < 0 ? run - 1 : -1
     if (run > longestWin) longestWin = run
     if (run < longestLoss) longestLoss = run
@@ -161,10 +170,13 @@ export function discipline(trades: Trade[]): Discipline {
     breaks: breaks.length,
     lastBreakRule,
     n: chron.length,
+    wins,
+    losses,
+    decided: wins + losses,
   }
 }
 
-// ─── Drawdown ───────────────────────────────────────────────────────────────────
+// ─── Drawdown ────────────────────────────────────────────────────────────────────────
 
 export interface UnderwaterPoint {
   i: number
@@ -209,7 +221,7 @@ export function underwater(trades: Trade[], startingBalance = 0): UnderwaterPoin
   return out
 }
 
-// ─── Months ─────────────────────────────────────────────────────────────────────
+// ─── Months ──────────────────────────────────────────────────────────────────────────
 
 export interface MonthCell {
   /** YYYY-MM. */
