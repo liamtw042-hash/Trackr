@@ -43,7 +43,7 @@ export function closedRs(trades: Trade[]): number[] {
     .map((t) => t.rMultiple as number)
 }
 
-// ─── Drawdown risk ────────────────────────────────────────────────────────────────
+// ─── Drawdown risk ─────────────────────────────────────────────────────────────────
 
 export interface RiskOutcome {
   /** Fraction of the account risked per trade, e.g. 0.01. */
@@ -122,11 +122,15 @@ export function simulateRisk(
 export interface KellyEstimate {
   /** The fraction that maximises expected log growth on this sample. */
   full: number
-  /** What a sane person actually trades. Quarter-Kelly, not half. */
-  suggested: number
   /** False when the sample has no positive expectancy to size against. */
   meaningful: boolean
 }
+
+// Deliberately no "suggested" or "safe" fraction here. An earlier version
+// exported quarter-Kelly, the UI printed it as "the usual practical ceiling",
+// and a reader correctly concluded the app was inviting him to size up ten-fold.
+// There is no derived number that is safe to publish next to an edge estimated
+// from a few dozen trades, so the library does not offer one.
 
 /**
  * Kelly for a set of R-multiples: the f maximising E[log(1 + f·r)].
@@ -137,12 +141,13 @@ export interface KellyEstimate {
  * The number this returns is almost always far too large to trade. Kelly
  * assumes the distribution is known; on 30 trades it is estimated, and an
  * over-estimated edge produces an over-sized bet whose downside is compounding
- * and permanent. That is why `suggested` is a quarter of it.
+ * and permanent. Pair it with kellyRange() wherever it is shown — on a few
+ * dozen trades the spread usually covers most of the answers it could give.
  */
 export function kelly(rs: number[]): KellyEstimate {
-  if (rs.length < 10) return { full: 0, suggested: 0, meaningful: false }
+  if (rs.length < 10) return { full: 0, meaningful: false }
   const mean = rs.reduce((s, r) => s + r, 0) / rs.length
-  if (mean <= 0) return { full: 0, suggested: 0, meaningful: false }
+  if (mean <= 0) return { full: 0, meaningful: false }
 
   const worst = Math.min(...rs)
   // Beyond this the log is undefined — a bet that can lose more than the account.
@@ -161,14 +166,45 @@ export function kelly(rs: number[]): KellyEstimate {
     if (g > bestGrowth) { bestGrowth = g; best = f }
   }
 
+  return { full: round(best, 4), meaningful: best > 0 }
+}
+
+/**
+ * How much the Kelly figure can be trusted, by re-estimating it from resamples
+ * of the same size.
+ *
+ * This exists because the point estimate is the single most dangerous number
+ * the app produces. On a few dozen trades it is not a measurement, it is a
+ * draw: a distribution whose true optimum is 20% will hand back anything from
+ * 0% to 40% depending which trades happened to land in the sample. Printing
+ * "23.4%" without that spread invites a reader to treat one decimal place as
+ * precision, and the downside of acting on it compounds and does not come back.
+ */
+export function kellyRange(rs: number[]): { lower: number; upper: number; wide: boolean } {
+  if (rs.length < 10) return { lower: 0, upper: 0, wide: true }
+
+  const rand = rng(SEED)
+  const ests: number[] = []
+  // Fewer resamples than the drawdown sim: each one runs a full Kelly scan,
+  // and 200 is plenty to show a range that spans most of the possible answers.
+  for (let b = 0; b < 200; b++) {
+    const samp = Array.from({ length: rs.length }, () => rs[Math.floor(rand() * rs.length)])
+    ests.push(kelly(samp).full)
+  }
+  ests.sort((a, b) => a - b)
+
+  const lower = ests[Math.floor(ests.length * 0.05)]
+  const upper = ests[Math.floor(ests.length * 0.95)]
   return {
-    full: round(best, 4),
-    suggested: round(best / 4, 4),
-    meaningful: best > 0,
+    lower: round(lower, 4),
+    upper: round(upper, 4),
+    // A spread wider than 10 points of account risk means the sample cannot
+    // locate the optimum at all, which is the honest headline.
+    wide: upper - lower > 0.1,
   }
 }
 
-// ─── Losing runs ──────────────────────────────────────────────────────────────────
+// ─── Losing runs ───────────────────────────────────────────────────────────────────
 
 export interface StreakExpectation {
   /** Trades the expectation is computed over. */
@@ -296,7 +332,7 @@ export function rollingExpectancy(trades: Trade[], window = 10): RollingPoint[] 
   return out
 }
 
-// ─── Typical risk actually taken ─────────────────────────────────────────────────
+// ─── Typical risk actually taken ───────────────────────────────────────────────
 
 /**
  * The median risk % across trades that recorded one — what he *actually* sizes

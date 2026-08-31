@@ -112,12 +112,22 @@ different question. Four thousand simulated runs per row, each drawing 100
 trades at random from your own closed results, report the chance of a 20 / 35 /
 50% drawdown at half your usual size, at it, and at double. Equity compounds in
 the model, because risking 1% means 1% of the *current* balance and modelling it
-additively is the classic way to make ruin look impossible. It also prints the
-growth-optimal (Kelly) fraction as a number to understand rather than trade:
-Kelly assumes the distribution is known, yours is estimated from a few dozen
-trades, and an over-estimated edge produces an over-sized bet whose losses
-compound. Assumes the next trade looks like the last ones and that trades are
-independent — real trading breaks both, so it is the optimistic case.
+additively is the classic way to make ruin look impossible. Assumes the next
+trade looks like the last ones and that trades are independent — real trading
+breaks both, so it is the optimistic case.
+
+It also prints the growth-optimal (Kelly) fraction, and this is the one number
+in the app that needed a second attempt. The first version showed it, called a
+quarter of it "the usual practical ceiling", and noted that the current 1% sat
+inside that — which reads as an invitation to size up ten-fold, and was read
+that way. Kelly is not a recommendation: it is the growth-maximising bet *if
+the edge were known exactly*, and on a few dozen trades it is not known at all.
+The panel now resamples the estimate to show its own spread (on 23 trades it
+typically runs from no edge at all up to ~48%, for one underlying answer) and
+states the cost in the trader's own terms — at 20% a trade, a losing run he has
+already had would have taken half the account. `risk.ts` deliberately exports no
+"suggested" or "safe" fraction, because there isn't one worth publishing next to
+an edge this uncertain.
 
 **Rolling expectancy** (Analysis) — the trailing ten-trade mean R against the
 all-time mean. Both lines, always: the window alone invites reading noise as a

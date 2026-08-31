@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { fmtPct, fmtMoney } from '@/lib/calc'
-import { closedRs, simulateRisk, kelly, typicalRiskPercent } from '@/lib/risk'
+import { closedRs, simulateRisk, kelly, kellyRange, typicalRiskPercent } from '@/lib/risk'
+import { discipline } from '@/lib/insight'
 import { Section } from '@/components/ui/Primitives'
 import type { Trade } from '@/types'
 
@@ -54,6 +55,15 @@ export function Survival({ trades, balance }: { trades: Trade[]; balance: number
   )
 
   const k = useMemo(() => kelly(rs), [rs])
+  const kRange = useMemo(() => kellyRange(rs), [rs])
+
+  // What full Kelly would have done to the worst run he has actually had.
+  // An abstract percentage is arguable; "your four-loss run would have left a
+  // third of the account" is not, and it is the only framing that reliably
+  // stops the number being read as a target.
+  const worstRun = useMemo(() => discipline(trades).longestLoss, [trades])
+  const leftAtKelly = Math.pow(1 - k.full, worstRun)
+  const leftAtTypical = Math.pow(1 - typical / 100, worstRun)
   const current = rows.find((r) => r.pct === typical) ?? rows[Math.floor(rows.length / 2)]
 
   if (rs.length < MIN_TRADES) {
@@ -160,18 +170,61 @@ export function Survival({ trades, balance }: { trades: Trade[]; balance: number
           </table>
         </div>
 
+        {/* The most dangerous number the app can print, so it is framed by what
+            it would cost rather than by how it compares to his current size.
+            An earlier draft called a quarter of it "the usual practical
+            ceiling" and noted his size sat inside it, which reads as headroom
+            and is exactly the wrong thing to tell someone. */}
         {k.meaningful && (
-          <p className="edge-note text-2xs text-ink-300 leading-relaxed max-w-[70ch]">
-            The growth-optimal size on this sample is{' '}
-            <span className="font-mono text-ink-100">{fmtPct(k.full * 100, 1)}</span> a
-            trade, which is a number to understand and not to trade. Kelly assumes the
-            distribution is known; yours is estimated from {rs.length} trades, and an
-            over-estimated edge produces an over-sized bet whose losses compound. A
-            quarter of it —{' '}
-            <span className="font-mono text-ink-100">{fmtPct(k.suggested * 100, 1)}</span>{' '}
-            — is the usual practical ceiling, and your {typical}% sits{' '}
-            {typical <= k.suggested * 100 ? 'inside it.' : 'above it.'}
-          </p>
+          <div className="edge-note-warn space-y-2 max-w-[70ch]">
+            <div className="text-2xs uppercase tracking-label text-down">
+              Growth-optimal size, and why it is not a target
+            </div>
+
+            <p className="text-2xs text-ink-300 leading-relaxed">
+              The size that maximises long-run growth on this sample is{' '}
+              <span className="font-mono text-ink-100">{fmtPct(k.full * 100, 1)}</span> a
+              trade. That is not a recommendation and not a ceiling to grow into
+              {kRange.wide ? (
+                <>
+                  {' '}— it is barely knowable from {rs.length} trades. Resampling your own
+                  results puts the same estimate anywhere from{' '}
+                  {kRange.lower < 0.005 ? (
+                    <span className="text-ink-100">no edge worth sizing at all</span>
+                  ) : (
+                    <span className="font-mono text-ink-100">{fmtPct(kRange.lower * 100, 1)}</span>
+                  )}{' '}
+                  up to{' '}
+                  <span className="font-mono text-ink-100">{fmtPct(kRange.upper * 100, 1)}</span>,
+                  so the figure is a draw rather than a measurement.
+                </>
+              ) : (
+                <>
+                  {' '}— Kelly assumes the distribution is known, and yours is estimated.
+                </>
+              )}
+            </p>
+
+            {worstRun > 0 && (
+              <p className="text-2xs text-ink-300 leading-relaxed">
+                What it would cost: at{' '}
+                <span className="font-mono">{fmtPct(k.full * 100, 1)}</span> a single
+                stop-out takes {fmtPct(k.full * 100, 0)} of the account, and your longest
+                losing run so far — <span className="font-mono">{worstRun}</span> — would
+                have left{' '}
+                <span className="font-mono text-down">{fmtPct(leftAtKelly * 100, 0)}</span>{' '}
+                of it. At your {typical}% the same run left{' '}
+                <span className="font-mono text-ink-100">{fmtPct(leftAtTypical * 100, 0)}</span>.
+              </p>
+            )}
+
+            <p className="text-3xs text-ink-500 leading-relaxed">
+              An over-estimated edge produces an over-sized bet, and a compounding
+              loss does not come back the way a compounding gain arrives. Traders who
+              use Kelly at all trade a fraction of it; nothing on this page is a
+              reason to size up.
+            </p>
+          </div>
         )}
 
         <p className="text-3xs text-ink-600 leading-relaxed max-w-[70ch]">
