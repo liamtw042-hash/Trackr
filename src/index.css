@@ -1,4 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════
    TYPEFACES
 
    Instrument Sans (Rodrigo Fuenzalida / Jeremy Mickel, 2023) for everything
@@ -15,7 +15,7 @@
    numbers in this app are actually read at.
 
    Both are variable, so the whole weight range costs one file per subset.
-   ═════════════════════════════════════════════════════════════════ */
+   ══════════════════════════════════════════════════════════════ */
 @import '@fontsource-variable/instrument-sans/wght.css';
 @import '@fontsource-variable/geist-mono/wght.css';
 
@@ -167,7 +167,7 @@
     @apply bg-ink-850;
   }
 
-  /* ══ HAIRLINES ═══════════════════════════════════════════════════════════════════
+  /* ══ HAIRLINES ════════════════════════════════════════════════════════════════════
      A rule that fades out at both ends. A full-bleed 1px line boxes things in;
      a fading one separates without drawing a wall. */
   .hairline {
@@ -359,6 +359,12 @@
   @media (max-width: 1279px) {
     .tbl-wrap {
       overflow-x: auto;
+      /* Once this wrapper scrolls it becomes the sticky containing block, and a
+         52px offset stops meaning "below the top bar" and starts meaning "52px
+         down inside the table" — which paints the header over the first two
+         rows. Zero it here so the header sits where it belongs and simply does
+         not travel. */
+      --thead-top: 0px;
     }
   }
 
@@ -369,7 +375,7 @@
     /* Sticks BELOW the top bar, not under it. top-0 parks the header behind the
        52px translucent header, which reads as the column labels having simply
        scrolled away — the one thing a sticky header exists to prevent. */
-    top: 52px;
+    top: var(--thead-top, 52px);
     backdrop-filter: blur(6px);
     box-shadow: inset 0 -1px 0 var(--edge);
   }
@@ -429,7 +435,7 @@
     @apply text-ink-400;
   }
 
-  /* ══ TAGS ═════════════════════════════════════════════════════════════════════════ */
+  /* ══ TAGS ════════════════════════════════════════════════════════════════════════ */
   .tag {
     @apply inline-flex items-center px-[5px] py-px text-3xs font-semibold rounded-sm
            uppercase tracking-label;
@@ -451,7 +457,7 @@
     box-shadow: inset 0 0 0 1px rgba(127, 180, 232, 0.22);
   }
 
-  /* ══ MISC ═════════════════════════════════════════════════════════════════════════ */
+  /* ══ MISC ════════════════════════════════════════════════════════════════════════ */
   /* A sweep rather than a pulse: loading reads as progress in one direction
      instead of the whole block blinking. */
   .skel {

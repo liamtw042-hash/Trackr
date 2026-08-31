@@ -158,7 +158,7 @@ export function Analysis() {
           </span>
         }
       >
-        <div className="overflow-x-auto">
+        <div className="tbl-wrap">
           <table className="tbl">
             <thead>
               <tr>

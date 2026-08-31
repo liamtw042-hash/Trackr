@@ -3,7 +3,7 @@ import type {
   ReactNode, CSSProperties, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes,
 } from 'react'
 
-// ────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
 // Containers.
 //
 // Four deliberately unequal tiers, each a *plane* rather than a bordered box:
@@ -19,7 +19,7 @@ import type {
 //
 // Choosing a tier is choosing how much a thing matters, so it stays an
 // explicit prop rather than something every caller inherits.
-// ────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
 
 type Tier = 'region' | 'surface' | 'raised' | 'hero'
 
@@ -89,7 +89,7 @@ export function PageHeader({
   )
 }
 
-// ─── Form fields ────────────────────────────────────────────────────────────
+// ─── Form fields ──────────────────────────────────────────────────────────────
 
 export function Field({
   label, hint, error, children, className = '',
@@ -130,7 +130,7 @@ export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea {...rest} className={`field ${className}`} />
 }
 
-// ─── Segmented control ──────────────────────────────────────────────────────
+// ─── Segmented control ────────────────────────────────────────────────────────
 
 export function Segmented<T extends string>({
   value, onChange, options, className = '',
@@ -222,7 +222,7 @@ export function OptionCard({
   )
 }
 
-// ─── Figures ───────────────────────────────────────────────────────────────
+// ─── Figures ─────────────────────────────────────────────────────────────────
 
 type Tone = 'up' | 'down' | 'neutral' | 'azure'
 
@@ -294,7 +294,7 @@ export function StatRow({ children, cols = 4 }: { children: ReactNode; cols?: nu
   )
 }
 
-// ─── Tag ──────────────────────────────────────────────────────────────────
+// ─── Tag ───────────────────────────────────────────────────────────────────
 
 export function Tag({ tone = 'neutral', children }: { tone?: Tone; children: ReactNode }) {
   const cls =
@@ -308,7 +308,7 @@ export function Kbd({ children }: { children: string }) {
   return <kbd className="kbd">{children}</kbd>
 }
 
-// ─── Empty / loading ────────────────────────────────────────────────────────
+// ─── Empty / loading ──────────────────────────────────────────────────────────
 
 export function Empty({ title, detail, action }: { title: string; detail?: string; action?: ReactNode }) {
   return (
@@ -343,7 +343,7 @@ export function SkeletonRows({ rows = 6, cols = 5 }: { rows?: number; cols?: num
   )
 }
 
-// ─── Modal ────────────────────────────────────────────────────────────────
+// ─── Modal ───────────────────────────────────────────────────────────────
 
 export function Modal({
   open, onClose, title, subtitle, width = 'max-w-3xl', footer, children,
@@ -410,7 +410,7 @@ export function Modal({
   )
 }
 
-// ─── Confidence bar ────────────────────────────────────────────────────────
+// ─── Confidence bar ─────────────────────────────────────────────────────────
 
 export function Confidence({ value }: { value: number | undefined }) {
   if (value === undefined) return null
@@ -451,5 +451,41 @@ export function MiniBar({
         style={{ width: `${pct}%` }}
       />
     </span>
+  )
+}
+
+/**
+ * A sortable column header.
+ *
+ * The caret appears only on the active column. A permanent grey caret on every
+ * header reads as eight disabled controls rather than one sorted column, and
+ * in a table this dense the extra glyphs cost more than the affordance buys —
+ * the pointer cursor and the hover already say the header is clickable.
+ */
+export function SortTh({
+  active, desc, onClick, children, num, title,
+}: {
+  active: boolean
+  desc: boolean
+  onClick: () => void
+  children: ReactNode
+  num?: boolean
+  title?: string
+}) {
+  return (
+    <th
+      className={num ? 'num' : ''}
+      aria-sort={active ? (desc ? 'descending' : 'ascending') : 'none'}
+    >
+      <button
+        onClick={onClick}
+        title={title}
+        className={`inline-flex items-center gap-1 transition-colors duration-90
+          hover:text-ink-100 ${active ? 'text-azure-bright' : ''}`}
+      >
+        {children}
+        {active && <span className="text-2xs leading-none">{desc ? '▾' : '▴'}</span>}
+      </button>
+    </th>
   )
 }

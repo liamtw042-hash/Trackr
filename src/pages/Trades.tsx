@@ -2,11 +2,12 @@ import { Fragment, useMemo, useState } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { useTrades } from '@/store/TradeContext'
 import { useAuth } from '@/store/AuthContext'
+import { useTableSort } from '@/hooks/useTableSort'
 import {
   fmtMoney, fmtR, fmtDateTime, fmtPrice, valueClass, dateOf, computeStats,
 } from '@/lib/calc'
 import { RULES, ruleScore, type Trade } from '@/types'
-import { Section, Empty, Tag, Input, Select, Stat, StatRow } from '@/components/ui/Primitives'
+import { Section, Empty, Tag, Input, Select, Stat, StatRow, SortTh } from '@/components/ui/Primitives'
 import { RulesBadge } from '@/components/trade/RulesChecklist'
 import { TradeDetail } from '@/components/trade/TradeDetail'
 import { QuickClose } from '@/components/trade/QuickClose'
@@ -53,13 +54,12 @@ export function Trades() {
     else params.set('filter', next)
     setParams(params, { replace: true })
   }
-  const [sort, setSort] = useState<SortKey>('date')
-  const [desc, setDesc] = useState(true)
+  const sort = useTableSort<SortKey>('date')
 
   const filtered = useMemo(() => {
     const q = query.trim().toUpperCase()
 
-    let list = trades.filter((t) => {
+    const list = trades.filter((t) => {
       if (q && !t.ticker.includes(q) && !t.setupType.toUpperCase().includes(q)
         && !t.notes.toUpperCase().includes(q)) return false
 
@@ -75,46 +75,25 @@ export function Trades() {
       }
     })
 
-    /**
-     * Nulls always sink to the bottom, whichever way the column is sorted — an
-     * open trade with no R yet is missing data, not the worst result. Handled
-     * before the flip so the sign reversal doesn't float them back to the top,
-     * and without arithmetic on the sentinels (−Infinity minus −Infinity is
-     * NaN, which leaves the comparator inconsistent and the order arbitrary).
-     */
-    const byNumber = (x: number | null, y: number | null): number | null => {
-      if (x === null && y === null) return 0
-      if (x === null) return 1
-      if (y === null) return -1
-      return null
-    }
-
-    list = [...list].sort((a, b) => {
-      let cmp = 0
-      switch (sort) {
-        case 'pair':
-          cmp = a.ticker.localeCompare(b.ticker)
-          break
-        case 'r': {
-          const nulls = byNumber(a.rMultiple, b.rMultiple)
-          if (nulls !== null) return nulls
-          cmp = (a.rMultiple as number) - (b.rMultiple as number)
-          break
-        }
-        case 'pnl': {
-          const nulls = byNumber(a.pnl, b.pnl)
-          if (nulls !== null) return nulls
-          cmp = (a.pnl as number) - (b.pnl as number)
-          break
-        }
-        default:
-          cmp = dateOf(a).getTime() - dateOf(b).getTime()
-      }
-      return desc ? -cmp : cmp
-    })
-
     return list
-  }, [trades, query, filter, sort, desc])
+  }, [trades, query, filter])
+
+  // Sorted separately from filtered, so the stats below — which only care about
+  // *which* trades are in view, never their order — don't recompute on a
+  // header click. Null handling (an open trade has no R yet: missing, not
+  // worst) lives in the hook, shared with the ASX table.
+  const visible = useMemo(
+    () =>
+      sort.sortBy(filtered, (t) => {
+        switch (sort.key) {
+          case 'pair': return t.ticker
+          case 'r': return t.rMultiple
+          case 'pnl': return t.pnl
+          default: return dateOf(t).getTime()
+        }
+      }),
+    [filtered, sort]
+  )
 
   // Stats reflect the current filter, so narrowing the view answers a question.
   const viewStats = useMemo(
@@ -122,22 +101,10 @@ export function Trades() {
     [filtered, profile?.startingBalance]
   )
 
-  const toggleSort = (key: SortKey) => {
-    if (sort === key) setDesc((d) => !d)
-    else { setSort(key); setDesc(true) }
-  }
-
-  const SortTh = ({ k, children, num }: { k: SortKey; children: string; num?: boolean }) => (
-    <th className={num ? 'num' : ''}>
-      <button
-        onClick={() => toggleSort(k)}
-        className={`inline-flex items-center gap-1 hover:text-ink-100 transition-colors
-          ${sort === k ? 'text-azure-bright' : ''}`}
-      >
-        {children}
-        {sort === k && <span className="text-2xs">{desc ? '▾' : '▴'}</span>}
-      </button>
-    </th>
+  const Th = (k: SortKey, label: string, num = false) => (
+    <SortTh active={sort.key === k} desc={sort.desc} onClick={() => sort.toggle(k)} num={num}>
+      {label}
+    </SortTh>
   )
 
   if (loading) return <div className="skel h-96" />
@@ -212,21 +179,21 @@ export function Trades() {
             <table className="tbl">
               <thead>
                 <tr>
-                  <SortTh k="date">Date</SortTh>
-                  <SortTh k="pair">Pair</SortTh>
+                  {Th('date', 'Date')}
+                  {Th('pair', 'Pair')}
                   <th>Dir</th>
                   <th className="num">Entry</th>
                   <th className="num">Stop</th>
                   <th className="num">Exit</th>
                   <th>Rules</th>
                   <th>Setup</th>
-                  <SortTh k="r" num>R</SortTh>
-                  <SortTh k="pnl" num>P&L</SortTh>
+                  {Th('r', 'R', true)}
+                  {Th('pnl', 'P&L', true)}
                   <th>Result</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((t) => {
+                {visible.map((t) => {
                   const score = ruleScore(t.rules)
                   return (
                     <Fragment key={t.id}>

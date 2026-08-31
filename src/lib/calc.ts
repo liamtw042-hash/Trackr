@@ -106,7 +106,7 @@ export function round(n: number, dp: number): number {
   return Math.round(n * f) / f
 }
 
-// ─── Aggregates ──────────────────────────────────────────────────────────────
+// ─── Aggregates ───────────────────────────────────────────────────────────────────────
 
 const EMPTY_STATS: Stats = {
   total: 0, open: 0, closed: 0, wins: 0, losses: 0, breakeven: 0,
@@ -273,22 +273,24 @@ export function groupPerformance<K extends string>(
     .sort((a, b) => b.count - a.count)
 }
 
-// ─── Formatting ──────────────────────────────────────────────────────────────
+// ─── Formatting ───────────────────────────────────────────────────────────────────────
 
 export function fmtMoney(n: number | null | undefined, dp = 2): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return '—'
-  const sign = n < 0 ? '-' : ''
+  // U+2212, not a hyphen — see fmtSignedPct. Nothing parses this back into a
+  // number: the CSV and JSON exports serialise the raw values, and this is
+  // display only.
+  const sign = n < 0 ? '−' : ''
   return `${sign}$${Math.abs(n).toLocaleString('en-AU', {
     minimumFractionDigits: dp,
     maximumFractionDigits: dp,
   })}`
 }
 
-/** Money with an explicit +/- — for anything that represents a change. */
+/** Money with an explicit +/− — for anything that represents a change. */
 export function fmtSigned(n: number | null | undefined, dp = 2): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return '—'
-  const s = fmtMoney(Math.abs(n), dp)
-  return n < 0 ? `−${s.replace('$', '$')}` : `+${s}`
+  return `${n < 0 ? '−' : '+'}${fmtMoney(Math.abs(n), dp)}`
 }
 
 export function fmtR(r: number | null | undefined): string {
@@ -299,6 +301,19 @@ export function fmtR(r: number | null | undefined): string {
 export function fmtPct(n: number | null | undefined, dp = 1): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return '—'
   return `${n.toFixed(dp)}%`
+}
+
+/**
+ * Percentage with an explicit +/− — for anything that represents a change.
+ *
+ * The sign is drawn rather than left to `toFixed`, which emits an ASCII hyphen.
+ * A hyphen is narrower than a digit and shorter than the plus it sits under, so
+ * a column of them fails to line up in tabular figures and reads a shade
+ * lighter than the gains beside it. U+2212 is the same width as the plus.
+ */
+export function fmtSignedPct(n: number | null | undefined, dp = 1): string {
+  if (n === null || n === undefined || !Number.isFinite(n)) return '—'
+  return `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toFixed(dp)}%`
 }
 
 /** Prices need pair-appropriate precision — JPY crosses use 3dp, others 5dp. */

@@ -180,7 +180,7 @@ export function RiskAudit() {
 
             <div className="hairline" />
 
-            <div className="overflow-x-auto">
+            <div className="tbl-wrap">
               <table className="tbl w-full">
                 <thead>
                   <tr>

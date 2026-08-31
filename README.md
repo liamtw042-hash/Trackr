@@ -92,7 +92,24 @@ since a rule break is the figure worth watching, since it is the only one on
 that page under direct control.
 
 **ASX portfolio** — a secondary panel. Holdings entered by hand (NAB Trade has
-no API), priced automatically. See the honesty note below.
+no API), priced automatically. Every holding carries its move for the session —
+the percentage the stock moved, and what that did to your parcel — alongside a
+portfolio total, the best and worst mover, and each position's weight. See the
+honesty note below.
+
+**Which day is "today"** — a day-change figure is only honest next to the day it
+belongs to, and on a Sunday every one of them is Friday's. The ASX page reads
+its session from two sources: the Sydney clock says whether the exchange *should*
+be trading, and the freshest quote timestamp says whether it actually is. Public
+holidays are not modelled — there is no free ASX holiday feed and a hardcoded
+calendar rots — but a holiday has no quotes dated today, so the marker degrades
+to closed on its own, and the column relabels itself from "Today" to the day the
+prices actually come from.
+
+**Sortable tables** — click any column head on Trades or ASX. Missing values
+always sink, whichever way the column points: sorting by P&L should put your
+biggest winner first, not eleven open positions that have no P&L yet. A null is
+"unknown", not "zero".
 
 ---
 
@@ -317,7 +334,8 @@ change it — pricing at [anthropic.com/pricing](https://www.anthropic.com/prici
 
 ```
 src/
-  lib/          calc, fx, edge, insight, ai, csv, images, firebase, migration, serialize
+  lib/          calc, fx, edge, insight, market, ai, csv, images, firebase, migration, serialize
+  hooks/        useQuotes, useTableSort
   store/        Auth / Trade / Holdings contexts
   components/   ui, trade, charts, analysis, desk, data, layout, ai
   pages/        Desk, Trades, Analysis, Portfolio, Data, Settings, SignIn

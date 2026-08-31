@@ -5,9 +5,10 @@ import { useTrades } from '@/store/TradeContext'
 import { useHoldings } from '@/store/HoldingsContext'
 import { useQuotes } from '@/hooks/useQuotes'
 import {
-  fmtMoney, fmtSigned, fmtR, fmtDate, valueClass, groupPerformance,
+  fmtMoney, fmtSigned, fmtSignedPct, fmtR, fmtDate, valueClass, groupPerformance,
 } from '@/lib/calc'
 import { estimateEdge, completeness, holdTimes, fmtDuration, ruleCosts } from '@/lib/edge'
+import { moveLabel, freshestAsOf } from '@/lib/market'
 import { RULES, type Trade } from '@/types'
 import { EquityChart } from '@/components/charts/Charts'
 import {
@@ -65,6 +66,20 @@ export function Desk() {
         const px = quotes[h.code]?.price
         return sum + (px ?? h.avgCost) * h.units
       }, 0),
+    [holdings, quotes]
+  )
+
+  // The share portfolio's move for the session, so the day is answerable from
+  // the desk without opening the ASX page. Only holdings that actually
+  // reported a previous close count — a missing change is unknown, not zero.
+  const portfolioDay = useMemo(() => {
+    const moved = holdings.filter((h) => quotes[h.code]?.change != null)
+    if (!moved.length) return null
+    return moved.reduce((sum, h) => sum + (quotes[h.code].change as number) * h.units, 0)
+  }, [holdings, quotes])
+
+  const asxDayLabel = useMemo(
+    () => moveLabel(freshestAsOf(holdings.map((h) => quotes[h.code]?.asOf))),
     [holdings, quotes]
   )
 
@@ -456,7 +471,18 @@ export function Desk() {
 
           <Section
             title="ASX"
-            meta={holdings.length ? fmtMoney(portfolioValue, 0) : undefined}
+            meta={
+              holdings.length ? (
+                <span className="flex items-baseline gap-2.5">
+                  <span>{fmtMoney(portfolioValue, 0)}</span>
+                  {portfolioDay !== null && (
+                    <span className={valueClass(portfolioDay)} title={`${asxDayLabel} across your holdings`}>
+                      {fmtSigned(portfolioDay, 0)}
+                    </span>
+                  )}
+                </span>
+              ) : undefined
+            }
             action={
               <Link to="/portfolio" className="text-2xs text-ink-400 hover:text-azure-bright transition-colors">
                 Manage ›
@@ -470,12 +496,21 @@ export function Desk() {
             ) : (
               <div className="space-y-2">
                 {holdings.slice(0, 5).map((h) => {
-                  const value = (quotes[h.code]?.price ?? h.avgCost) * h.units
+                  const q = quotes[h.code]
+                  const value = (q?.price ?? h.avgCost) * h.units
                   const gain = value - h.avgCost * h.units
                   return (
-                    <div key={h.id} className="flex items-baseline justify-between font-mono text-2xs">
+                    <div key={h.id} className="flex items-baseline justify-between gap-3 font-mono text-2xs">
                       <span className="text-ink-100">{h.code}</span>
-                      <span className={valueClass(gain)}>{fmtSigned(gain, 0)}</span>
+                      <span className="flex items-baseline gap-3">
+                        {/* The session's move, then the position's whole life.
+                            Same order as the ASX page, so the two never have to
+                            be read against each other. */}
+                        <span className={q?.changePercent != null ? valueClass(q.changePercent) : 'text-ink-700'}>
+                          {q?.changePercent != null ? fmtSignedPct(q.changePercent) : '—'}
+                        </span>
+                        <span className={valueClass(gain)}>{fmtSigned(gain, 0)}</span>
+                      </span>
                     </div>
                   )
                 })}
